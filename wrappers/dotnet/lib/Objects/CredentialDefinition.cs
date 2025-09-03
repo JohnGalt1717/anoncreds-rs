@@ -6,29 +6,46 @@ namespace AnonCredsNet.Objects;
 
 public class CredentialDefinition : AnonCredsObject
 {
-    private CredentialDefinition(int handle)
+    private CredentialDefinition(UIntPtr handle)
         : base(handle) { }
 
-    internal static (
+    public static (
         CredentialDefinition CredDef,
         CredentialDefinitionPrivate CredDefPvt,
         KeyCorrectnessProof KeyProof
-    ) Create(string issuerId, Schema schema, string tag, string sigType, string config)
+    ) Create(
+        string schemaId,
+        string issuerId,
+        Schema schema,
+        string tag,
+        string sigType,
+        string config
+    )
     {
         if (
-            string.IsNullOrEmpty(issuerId)
+            string.IsNullOrEmpty(schemaId)
+            || string.IsNullOrEmpty(issuerId)
             || schema == null
             || string.IsNullOrEmpty(tag)
             || string.IsNullOrEmpty(sigType)
             || string.IsNullOrEmpty(config)
         )
             throw new ArgumentNullException("Input parameters cannot be null or empty");
+
+        // Parse config to determine if revocation should be supported
+        var configObj = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(
+            config
+        );
+        var supportRevocation =
+            configObj.TryGetProperty("support_revocation", out var revProp) && revProp.GetBoolean();
+
         var code = NativeMethods.anoncreds_create_credential_definition(
-            issuerId,
+            schemaId,
             schema.Handle,
             tag,
+            issuerId,
             sigType,
-            config,
+            supportRevocation,
             out var cd,
             out var pvt,
             out var proof
@@ -42,13 +59,13 @@ public class CredentialDefinition : AnonCredsObject
         );
     }
 
-    internal static CredentialDefinition FromJson(string json) =>
+    public static CredentialDefinition FromJson(string json) =>
         FromJson<CredentialDefinition>(json);
 }
 
 public class CredentialDefinitionPrivate : AnonCredsObject
 {
-    internal CredentialDefinitionPrivate(int handle)
+    internal CredentialDefinitionPrivate(UIntPtr handle)
         : base(handle) { }
 
     internal static CredentialDefinitionPrivate FromJson(string json) =>

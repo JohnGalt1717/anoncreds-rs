@@ -7,14 +7,16 @@ namespace AnonCredsNet.Requests;
 
 public class CredentialRequest : AnonCredsObject
 {
-    private CredentialRequest(int handle)
+    private CredentialRequest(UIntPtr handle)
         : base(handle) { }
 
-    internal static (CredentialRequest Request, CredentialRequestMetadata Metadata) Create(
+    public static (CredentialRequest Request, CredentialRequestMetadata Metadata) Create(
         CredentialDefinition credDef,
         LinkSecret linkSecret,
         string linkSecretId,
-        CredentialOffer credOffer
+        CredentialOffer credOffer,
+        string? entropy = null,
+        string? proverDid = null
     )
     {
         if (
@@ -25,8 +27,10 @@ public class CredentialRequest : AnonCredsObject
         )
             throw new ArgumentNullException("Input parameters cannot be null or empty");
         var code = NativeMethods.anoncreds_create_credential_request(
+            entropy,
+            proverDid,
             credDef.Handle,
-            linkSecret.Handle,
+            linkSecret.Value,
             linkSecretId,
             credOffer.Handle,
             out var req,

@@ -4,9 +4,9 @@ namespace AnonCredsNet.Requests;
 
 public sealed class PresentationRequest : AnonCredsObject
 {
-    internal PresentationRequest(int handle)
+    internal PresentationRequest(UIntPtr handle)
         : base(handle) { }
 
-    internal static PresentationRequest FromJson(string json) =>
-        FromJson<PresentationRequest>(json);
+    public static PresentationRequest FromJson(string json) =>
+        AnonCredsObject.FromJson<PresentationRequest>(json);
 }

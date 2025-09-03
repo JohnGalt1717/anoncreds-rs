@@ -17,152 +17,259 @@ internal static partial class NativeMethods
     internal static partial void anoncreds_buffer_free(ByteBuffer buf);
 
     [LibraryImport(Library)]
-    internal static partial void anoncreds_object_free(int handle);
+    internal static partial void anoncreds_object_free(UIntPtr handle);
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_object_get_json(
+        UIntPtr handle,
+        out ByteBuffer json
+    );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial ErrorCode anoncreds_object_get_json(int handle, out IntPtr json);
+    internal static partial ErrorCode anoncreds_object_from_json(string json, out UIntPtr handle);
 
-    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial ErrorCode anoncreds_object_from_json(string json, out int handle);
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_schema_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_credential_definition_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_credential_definition_private_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_key_correctness_proof_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_credential_offer_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_credential_request_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_credential_request_metadata_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_credential_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_presentation_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_presentation_request_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_revocation_registry_definition_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_revocation_registry_private_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_revocation_status_list_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_revocation_status_list_delta_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_revocation_state_from_json(
+        ByteBuffer json,
+        out UIntPtr handle
+    );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_generate_nonce(out IntPtr nonce);
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_schema(
-        string issuerId,
         string name,
         string version,
-        string attrNames,
-        out int handle
+        string issuerId,
+        FfiStrList attrNames,
+        out UIntPtr handle
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_credential_definition(
-        string issuerId,
-        int schema,
+        string schemaId,
+        UIntPtr schema,
         string tag,
-        string sigType,
-        string config,
-        out int credDef,
-        out int credDefPvt,
-        out int keyProof
+        string issuerId,
+        string signatureType,
+        [MarshalAs(UnmanagedType.I1)] bool supportRevocation,
+        out UIntPtr credDef,
+        out UIntPtr credDefPvt,
+        out UIntPtr keyProof
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial ErrorCode anoncreds_create_credential_offer(int credDef, out int offer);
+    internal static partial ErrorCode anoncreds_create_credential_offer(
+        string schemaId,
+        string credDefId,
+        UIntPtr keyProof,
+        out UIntPtr offer
+    );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial ErrorCode anoncreds_create_link_secret(out int linkSecret);
+    internal static partial ErrorCode anoncreds_create_link_secret(out IntPtr linkSecret);
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_credential_request(
-        int credDef,
-        int linkSecret,
+        string? entropy,
+        string? proverDid,
+        UIntPtr credDef,
+        string linkSecret,
         string linkSecretId,
-        int credOffer,
-        out int request,
-        out int metadata
+        UIntPtr credOffer,
+        out UIntPtr request,
+        out UIntPtr metadata
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_credential(
-        int credDef,
-        int credDefPvt,
-        int credOffer,
-        int credRequest,
-        string credValues,
-        string revRegId,
-        string tailsPath,
-        int revStatusList,
-        out int credential,
-        out int revStatusListDelta
+        UIntPtr credDef,
+        UIntPtr credDefPvt,
+        UIntPtr credOffer,
+        UIntPtr credRequest,
+        FfiStrList attrNames,
+        FfiStrList attrRawValues,
+        FfiStrList attrEncValues,
+        IntPtr revocation,
+        out UIntPtr credential
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_process_credential(
-        int credential,
-        int requestMetadata,
-        int linkSecret,
-        int credDef,
-        int revRegDef,
-        out int processedCredential
+        UIntPtr credential,
+        UIntPtr requestMetadata,
+        string linkSecret,
+        UIntPtr credDef,
+        UIntPtr revRegDef,
+        out UIntPtr processedCredential
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_presentation(
-        int presReq,
-        FfiList credentials,
-        string selfAttestJson,
-        int linkSecret,
-        FfiList schemas,
-        FfiList credDefs,
-        out int presentation
+        UIntPtr presReq,
+        FfiCredentialEntryList credentials,
+        FfiCredentialProveList credentialsProve,
+        FfiStrList selfAttestNames,
+        FfiStrList selfAttestValues,
+        string linkSecret,
+        FfiObjectHandleList schemas,
+        FfiStrList schemaIds,
+        FfiObjectHandleList credDefs,
+        FfiStrList credDefIds,
+        out UIntPtr presentation
     );
 
-    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library)]
     internal static partial ErrorCode anoncreds_verify_presentation(
-        int presentation,
-        int presReq,
-        FfiList schemas,
-        FfiList credDefs,
-        FfiList revRegDefs,
-        FfiList revStatusLists,
-        FfiList nonRevoc,
-        [MarshalAs(UnmanagedType.U1)] out bool isValid
+        UIntPtr presentation,
+        UIntPtr presReq,
+        FfiObjectHandleList schemas,
+        FfiStrList schemaIds,
+        FfiObjectHandleList credDefs,
+        FfiStrList credDefIds,
+        FfiObjectHandleList revRegDefs,
+        FfiStrList revRegDefIds,
+        FfiObjectHandleList revStatusLists,
+        FfiNonrevokedIntervalOverrideList nonrevokedIntervalOverride,
+        out sbyte isValid
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_revocation_registry_def(
-        int credDef,
+        UIntPtr credDef,
         string issuerId,
         string tag,
         string revType,
         string config,
         string tailsPath,
-        out int revRegDef,
-        out int revRegPvt,
-        out int revStatusList
+        out UIntPtr revRegDef,
+        out UIntPtr revRegPvt,
+        out UIntPtr revStatusList
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_revocation_status_list(
         string issuerId,
-        int revRegDef,
+        UIntPtr revRegDef,
         string timestamp,
-        [MarshalAs(UnmanagedType.U1)] bool issued,
-        [MarshalAs(UnmanagedType.U1)] bool revoked,
+        [MarshalAs(UnmanagedType.I1)] bool issued,
+        [MarshalAs(UnmanagedType.I1)] bool revoked,
         string tailsPath,
-        out int statusList
+        out UIntPtr statusList
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_update_revocation_status_list(
-        int statusList,
+        UIntPtr statusList,
         string issuedJson,
         string revokedJson,
         string timestamp,
-        out int updatedList,
-        out int delta
+        out UIntPtr updatedList,
+        out UIntPtr delta
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_revocation_state(
-        AnoncredsCredentialRevocationInfo credRevInfo,
-        int revRegDef,
-        int statusList,
+        IntPtr credRevInfo,
+        UIntPtr revRegDef,
+        UIntPtr statusList,
         string timestamp,
         string tailsPath,
-        out int revState
+        out UIntPtr revState
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_update_revocation_state(
-        int revState,
-        int revRegDef,
-        int statusListDelta,
+        UIntPtr revState,
+        UIntPtr revRegDef,
+        UIntPtr statusListDelta,
         string timestamp,
         string tailsPath,
-        out int updatedState
+        out UIntPtr updatedState
     );
 }

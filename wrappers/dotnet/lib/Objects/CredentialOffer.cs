@@ -6,14 +6,27 @@ namespace AnonCredsNet.Objects;
 
 public class CredentialOffer : AnonCredsObject
 {
-    private CredentialOffer(int handle)
+    private CredentialOffer(UIntPtr handle)
         : base(handle) { }
 
-    internal static CredentialOffer Create(CredentialDefinition credDef)
+    public static CredentialOffer Create(
+        string schemaId,
+        string credDefId,
+        KeyCorrectnessProof keyProof
+    )
     {
-        if (credDef == null)
-            throw new ArgumentNullException(nameof(credDef));
-        var code = NativeMethods.anoncreds_create_credential_offer(credDef.Handle, out var handle);
+        if (string.IsNullOrEmpty(schemaId))
+            throw new ArgumentNullException(nameof(schemaId));
+        if (string.IsNullOrEmpty(credDefId))
+            throw new ArgumentNullException(nameof(credDefId));
+        if (keyProof == null)
+            throw new ArgumentNullException(nameof(keyProof));
+        var code = NativeMethods.anoncreds_create_credential_offer(
+            schemaId,
+            credDefId,
+            keyProof.Handle,
+            out var handle
+        );
         if (code != ErrorCode.Success)
             throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
         return new CredentialOffer(handle);

@@ -2,7 +2,7 @@ namespace AnonCredsNet.Objects;
 
 public class RevocationRegistryDefinition : AnonCredsObject
 {
-    internal RevocationRegistryDefinition(int handle)
+    internal RevocationRegistryDefinition(UIntPtr handle)
         : base(handle) { }
 
     public static RevocationRegistryDefinition FromJson(string json) =>

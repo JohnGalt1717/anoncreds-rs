@@ -6,11 +6,11 @@ namespace AnonCredsNet.Objects;
 
 public class RevocationState : AnonCredsObject
 {
-    private RevocationState(int handle)
+    private RevocationState(UIntPtr handle)
         : base(handle) { }
 
     public static RevocationState Create(
-        int credRevInfo,
+        IntPtr credRevInfo,
         RevocationRegistryDefinition revRegDef,
         RevocationStatusList statusList,
         string timestamp,
@@ -18,7 +18,7 @@ public class RevocationState : AnonCredsObject
     )
     {
         if (
-            credRevInfo == 0
+            credRevInfo == IntPtr.Zero
             || revRegDef == null
             || statusList == null
             || string.IsNullOrEmpty(timestamp)

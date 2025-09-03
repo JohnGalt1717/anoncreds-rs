@@ -2,30 +2,42 @@ using System.Runtime.InteropServices;
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
+using AnonCredsNet.Requests;
 
 namespace AnonCredsNet.Objects;
 
 public abstract class AnonCredsObject : IDisposable
 {
-    internal int Handle { get; private set; }
+    internal UIntPtr Handle { get; private set; }
 
-    protected AnonCredsObject(int handle)
+    protected AnonCredsObject(UIntPtr handle)
     {
-        if (handle == 0)
+        if (handle == UIntPtr.Zero)
             throw new AnonCredsException(ErrorCode.CommonInvalidState, "Invalid native handle");
         Handle = handle;
     }
 
     public string ToJson()
     {
-        if (Handle == 0)
+        if (Handle == UIntPtr.Zero)
             throw new ObjectDisposedException(GetType().Name);
-        var code = NativeMethods.anoncreds_object_get_json(Handle, out var ptr);
+        var code = NativeMethods.anoncreds_object_get_json(Handle, out var buffer);
         if (code != ErrorCode.Success)
-            throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
-        var json = Marshal.PtrToStringUTF8(ptr) ?? throw new InvalidOperationException("Null JSON");
-        NativeMethods.anoncreds_string_free(ptr);
-        return json;
+        {
+            var errorMsg = AnonCredsHelpers.GetCurrentError();
+            throw new AnonCredsException(code, $"ToJson failed for {GetType().Name}: {errorMsg}");
+        }
+        try
+        {
+            var json =
+                Marshal.PtrToStringUTF8(buffer.Data, checked((int)buffer.Len))
+                ?? throw new InvalidOperationException("Null JSON");
+            return json;
+        }
+        finally
+        {
+            NativeMethods.anoncreds_buffer_free(buffer);
+        }
     }
 
     protected static T FromJson<T>(string json)
@@ -33,10 +45,81 @@ public abstract class AnonCredsObject : IDisposable
     {
         if (string.IsNullOrEmpty(json))
             throw new ArgumentNullException(nameof(json));
-        var code = NativeMethods.anoncreds_object_from_json(json, out var handle);
+
+        var code = FromJsonInternal(typeof(T), json, out var handle);
         if (code != ErrorCode.Success)
             throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
-        return (T)Activator.CreateInstance(typeof(T), handle)!;
+        return (T)
+            Activator.CreateInstance(
+                typeof(T),
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+                null,
+                [handle],
+                null
+            )!;
+    }
+
+    private static ErrorCode FromJsonInternal(Type type, string json, out UIntPtr handle)
+    {
+        handle = UIntPtr.Zero;
+        var buffer = AnonCredsHelpers.CreateByteBuffer(json);
+
+        try
+        {
+            if (type == typeof(Schema))
+                return NativeMethods.anoncreds_schema_from_json(buffer, out handle);
+            else if (type == typeof(CredentialDefinition))
+                return NativeMethods.anoncreds_credential_definition_from_json(buffer, out handle);
+            else if (type == typeof(CredentialDefinitionPrivate))
+                return NativeMethods.anoncreds_credential_definition_private_from_json(
+                    buffer,
+                    out handle
+                );
+            else if (type == typeof(KeyCorrectnessProof))
+                return NativeMethods.anoncreds_key_correctness_proof_from_json(buffer, out handle);
+            else if (type == typeof(CredentialOffer))
+                return NativeMethods.anoncreds_credential_offer_from_json(buffer, out handle);
+            else if (type == typeof(CredentialRequest))
+                return NativeMethods.anoncreds_credential_request_from_json(buffer, out handle);
+            else if (type == typeof(CredentialRequestMetadata))
+                return NativeMethods.anoncreds_credential_request_metadata_from_json(
+                    buffer,
+                    out handle
+                );
+            else if (type == typeof(Credential))
+                return NativeMethods.anoncreds_credential_from_json(buffer, out handle);
+            else if (type == typeof(Presentation))
+                return NativeMethods.anoncreds_presentation_from_json(buffer, out handle);
+            else if (type == typeof(PresentationRequest))
+                return NativeMethods.anoncreds_presentation_request_from_json(buffer, out handle);
+            else if (type == typeof(RevocationRegistryDefinition))
+                return NativeMethods.anoncreds_revocation_registry_definition_from_json(
+                    buffer,
+                    out handle
+                );
+            else if (type == typeof(RevocationRegistryPrivate))
+                return NativeMethods.anoncreds_revocation_registry_private_from_json(
+                    buffer,
+                    out handle
+                );
+            else if (type == typeof(RevocationStatusList))
+                return NativeMethods.anoncreds_revocation_status_list_from_json(buffer, out handle);
+            else if (type == typeof(RevocationStatusListDelta))
+                return NativeMethods.anoncreds_revocation_status_list_delta_from_json(
+                    buffer,
+                    out handle
+                );
+            else if (type == typeof(RevocationState))
+                return NativeMethods.anoncreds_revocation_state_from_json(buffer, out handle);
+            else
+                throw new NotSupportedException(
+                    $"Type {type.Name} is not supported for JSON deserialization"
+                );
+        }
+        finally
+        {
+            AnonCredsHelpers.FreeByteBuffer(buffer);
+        }
     }
 
     public void Dispose()
@@ -47,10 +130,10 @@ public abstract class AnonCredsObject : IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (Handle == 0)
+        if (Handle == UIntPtr.Zero)
             return;
         NativeMethods.anoncreds_object_free(Handle);
-        Handle = 0;
+        Handle = UIntPtr.Zero;
     }
 
     ~AnonCredsObject() => Dispose(false);

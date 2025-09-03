@@ -6,7 +6,7 @@ namespace AnonCredsNet.Objects;
 
 public class RevocationStatusList : AnonCredsObject
 {
-    private RevocationStatusList(int handle)
+    private RevocationStatusList(UIntPtr handle)
         : base(handle) { }
 
     public static (

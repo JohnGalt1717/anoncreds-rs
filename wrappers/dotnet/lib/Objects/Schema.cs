@@ -6,27 +6,30 @@ namespace AnonCredsNet.Objects;
 
 public class Schema : AnonCredsObject
 {
-    private Schema(int handle)
+    private Schema(UIntPtr handle)
         : base(handle) { }
 
-    internal static Schema Create(
-        string issuerId,
-        string name,
-        string version,
-        string attrNamesJson
-    )
+    public static Schema Create(string issuerId, string name, string version, string attrNamesJson)
     {
-        var code = NativeMethods.anoncreds_create_schema(
-            issuerId,
-            name,
-            version,
-            attrNamesJson,
-            out var handle
-        );
-        if (code != ErrorCode.Success)
-            throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
-        return new Schema(handle);
+        var attrNamesList = AnonCredsHelpers.CreateFfiStrList(attrNamesJson);
+        try
+        {
+            var code = NativeMethods.anoncreds_create_schema(
+                name,
+                version,
+                issuerId,
+                attrNamesList,
+                out var handle
+            );
+            if (code != ErrorCode.Success)
+                throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
+            return new Schema(handle);
+        }
+        finally
+        {
+            AnonCredsHelpers.FreeFfiStrList(attrNamesList);
+        }
     }
 
-    internal static Schema FromJson(string json) => FromJson<Schema>(json);
+    public static Schema FromJson(string json) => FromJson<Schema>(json);
 }

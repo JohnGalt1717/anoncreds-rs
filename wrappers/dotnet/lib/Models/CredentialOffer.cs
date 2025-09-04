@@ -2,7 +2,7 @@ using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
 
-namespace AnonCredsNet.Objects;
+namespace AnonCredsNet.Models;
 
 public class CredentialOffer : AnonCredsObject
 {

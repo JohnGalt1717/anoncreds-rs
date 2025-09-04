@@ -1,7 +1,7 @@
+using System.Runtime.InteropServices;
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
-using AnonCredsNet.Objects;
 
 namespace AnonCredsNet.Models;
 
@@ -10,13 +10,18 @@ public class LinkSecret : AnonCredsObject
     internal LinkSecret(long handle)
         : base(handle) { }
 
-    public static LinkSecret Create()
+    public string Value => ToJson();
+
+    public static string Create()
     {
-        var code = NativeMethods.anoncreds_create_link_secret(out var handle);
+        var code = NativeMethods.anoncreds_create_link_secret(out var ptr);
         if (code != ErrorCode.Success)
         {
             throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
         }
-        return new LinkSecret(handle);
+        var linkSecret =
+            Marshal.PtrToStringUTF8(ptr) ?? throw new InvalidOperationException("Null link secret");
+        NativeMethods.anoncreds_string_free(ptr);
+        return linkSecret;
     }
 }

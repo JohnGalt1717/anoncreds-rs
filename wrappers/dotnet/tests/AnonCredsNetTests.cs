@@ -1,7 +1,5 @@
 using System.Text.Json;
-using AnonCredsNet;
 using AnonCredsNet.Models;
-using AnonCredsNet.Objects;
 using AnonCredsNet.Requests;
 using Xunit;
 
@@ -28,7 +26,7 @@ public class AnonCredsNetTests
         var attrNames = new[] { "name", "age", "sex", "height" };
         var schema = Schema.Create(
             "schema name",
-            "schema version",
+            "1.0.0",
             issuerId,
             JsonSerializer.Serialize(attrNames)
         );
@@ -43,26 +41,20 @@ public class AnonCredsNetTests
             "{\"support_revocation\": true}"
         );
 
-        // 4. Create Revocation Registry Definition
-        var (revRegDef, revRegDefPrivate) = RevocationRegistryDefinition.Create(
+        // 4. Create Revocation Registry Definition and Status List
+        var timeCreateRevStatusList = 12ul;
+        (
+            RevocationRegistryDefinition revRegDef,
+            RevocationRegistryDefinitionPrivate revRegDefPrivate,
+            RevocationStatusList revocationStatusList
+        ) = RevocationStatusList.CreateRevocationRegistryDefinition(
             credDef,
             credDefId,
             issuerId,
             "some_tag",
             "CL_ACCUM",
-            10
-        );
-
-        // 5. Create Revocation Status List
-        var timeCreateRevStatusList = 12ul;
-        var revocationStatusList = RevocationStatusList.Create(
-            credDef,
-            revRegId,
-            revRegDef,
-            revRegDefPrivate,
-            issuerId,
-            true,
-            timeCreateRevStatusList
+            10,
+            "" // tailsPath
         );
 
         // 6. Create Link Secret
@@ -92,12 +84,12 @@ public class AnonCredsNetTests
             }
         );
 
-        var revConfig = new RevocationConfig
+        var revConfig = new CredentialRevocationConfig
         {
-            RevocationRegistryDefinition = revRegDef,
-            RevocationRegistryDefinitionPrivate = revRegDefPrivate,
-            StatusList = revocationStatusList,
-            RegistryIndex = revIdx,
+            RevRegDef = revRegDef,
+            RevRegDefPrivate = revRegDefPrivate,
+            RevStatusList = revocationStatusList,
+            RevRegIndex = revIdx,
         };
 
         var credential = _client.IssueCredential(
@@ -125,7 +117,7 @@ public class AnonCredsNetTests
             credDef,
             revRegDef,
             revRegDefPrivate,
-            new[] { revIdx },
+            new[] { (ulong)revIdx },
             null,
             timeAfterCreatingCred
         );
@@ -186,7 +178,7 @@ public class AnonCredsNetTests
             new Dictionary<string, string> { [revRegId] = revRegDef.ToJson() }
         );
         var revListsJson = JsonSerializer.Serialize(
-            new Dictionary<string, string> { [revRegId] = issuedRevStatusList.UpdatedList.ToJson() }
+            new Dictionary<string, string> { [revRegId] = issuedRevStatusList.ToJson() }
         );
 
         var presentation = _client.CreatePresentation(
@@ -206,11 +198,11 @@ public class AnonCredsNetTests
             presReq,
             schemasJson,
             credDefsJson,
-            null,
-            null,
+            JsonSerializer.Serialize(new[] { schemaId }),
+            JsonSerializer.Serialize(new[] { credDefId }),
             revRegsJson,
             revListsJson,
-            null,
+            JsonSerializer.Serialize(new[] { revRegId }),
             null
         );
 

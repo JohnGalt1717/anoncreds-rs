@@ -1,4 +1,4 @@
-using AnonCredsNet.Objects;
+using AnonCredsNet.Models;
 
 namespace AnonCredsNet.Requests;
 

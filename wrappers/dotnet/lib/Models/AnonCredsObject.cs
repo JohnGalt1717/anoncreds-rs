@@ -4,7 +4,7 @@ using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
 using AnonCredsNet.Requests;
 
-namespace AnonCredsNet.Objects;
+namespace AnonCredsNet.Models;
 
 public abstract class AnonCredsObject : IDisposable
 {
@@ -97,7 +97,7 @@ public abstract class AnonCredsObject : IDisposable
                     buffer,
                     out handle
                 );
-            else if (type == typeof(RevocationRegistryPrivate))
+            else if (type == typeof(RevocationRegistryDefinitionPrivate))
                 return NativeMethods.anoncreds_revocation_registry_private_from_json(
                     buffer,
                     out handle

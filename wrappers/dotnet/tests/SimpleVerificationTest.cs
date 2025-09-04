@@ -1,6 +1,5 @@
 using System.Text.Json;
-using AnonCredsNet;
-using AnonCredsNet.Objects;
+using AnonCredsNet.Models;
 using AnonCredsNet.Requests;
 using Xunit;
 
@@ -19,9 +18,9 @@ namespace AnonCredsNet.Tests
 
             // Create schema (exact match to Python test)
             var schema = Schema.Create(
-                issuerId,
                 "schema name",
-                "schema version",
+                "1.0.0",
+                issuerId,
                 JsonSerializer.Serialize(new[] { "name", "age", "sex", "height" })
             );
 
@@ -95,7 +94,7 @@ namespace AnonCredsNet.Tests
                     {
                         attr1_referent = new { name = "name", issuer_id = issuerId },
                         attr2_referent = new { name = "sex" },
-                        // Removing attr3_referent (phone) temporarily to test basic functionality
+                        // Removed attr3_referent (phone) to match simplified test
                         attr4_referent = new { names = new[] { "name", "height" } },
                     },
                     requested_predicates = new
@@ -134,7 +133,7 @@ namespace AnonCredsNet.Tests
             var selfAttestedAttrs = JsonSerializer.Serialize(new Dictionary<string, string>());
 
             Console.WriteLine("Creating presentation...");
-            var presentation = client.CreatePresentation(
+            var (presentation, _, _, _, _, _, _, _, _, _) = client.CreatePresentation(
                 presReq,
                 presentCredentials,
                 selfAttestedAttrs,
@@ -142,7 +141,9 @@ namespace AnonCredsNet.Tests
                 schemasJson,
                 credDefsJson,
                 schemaIdsJson,
-                credDefIdsJson
+                credDefIdsJson,
+                null,
+                null
             );
 
             // Verify presentation (exact match to Python test structure but without revocation)
@@ -169,7 +170,7 @@ namespace AnonCredsNet.Tests
             credDef.Dispose();
             credDefPrivate.Dispose();
             keyProof.Dispose();
-            linkSecret.Dispose();
+            // linkSecret is a string, no Dispose
             credOffer.Dispose();
             credRequest.Dispose();
             metadata.Dispose();

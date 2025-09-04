@@ -2,14 +2,14 @@ using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
 
-namespace AnonCredsNet.Objects;
+namespace AnonCredsNet.Models;
 
 public class Schema : AnonCredsObject
 {
     private Schema(long handle)
         : base(handle) { }
 
-    public static Schema Create(string issuerId, string name, string version, string attrNamesJson)
+    public static Schema Create(string name, string version, string issuerId, string attrNamesJson)
     {
         var attrNamesList = AnonCredsHelpers.CreateFfiStrList(attrNamesJson);
         try

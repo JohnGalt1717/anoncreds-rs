@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Interop;
-using AnonCredsNet.Objects;
+using AnonCredsNet.Models;
 using AnonCredsNet.Requests;
 
 namespace AnonCredsNet.Helpers;

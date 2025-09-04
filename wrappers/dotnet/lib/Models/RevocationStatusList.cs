@@ -41,15 +41,23 @@ public class RevocationStatusList : AnonCredsObject
             maxCredNum,
             tailsPath ?? "",
             out var def,
-            out var pvt,
-            out var list
+            out var pvt
         );
         if (code != ErrorCode.Success)
             throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
         return (
             new RevocationRegistryDefinition(def),
             new RevocationRegistryDefinitionPrivate(pvt),
-            new RevocationStatusList(list)
+            // Immediately create initial status list to align with Python
+            Create(
+                credDef,
+                credDefId,
+                new RevocationRegistryDefinition(def),
+                new RevocationRegistryDefinitionPrivate(pvt),
+                issuerId,
+                true,
+                0
+            )
         );
     }
 
@@ -72,8 +80,6 @@ public class RevocationStatusList : AnonCredsObject
         )
             throw new ArgumentNullException("Input parameters cannot be null or empty");
 
-        // Note: This is a simplified implementation. The actual native call may differ.
-        // For now, we'll use the existing native call with dummy values.
         var code = NativeMethods.anoncreds_create_revocation_status_list(
             credDef.Handle,
             revRegId,
@@ -101,19 +107,17 @@ public class RevocationStatusList : AnonCredsObject
         if (credDef == null || revRegDef == null || revRegDefPrivate == null)
             throw new ArgumentNullException("Input parameters cannot be null or empty");
 
-        // Note: This is a simplified implementation. The actual native call may differ.
-        // For now, we'll use the existing native call with dummy values.
-        var issuedJson = issued != null ? System.Text.Json.JsonSerializer.Serialize(issued) : "{}";
-        var revokedJson =
-            revoked != null ? System.Text.Json.JsonSerializer.Serialize(revoked) : "{}";
-
+        var issuedList = AnonCredsHelpers.CreateFfiInt32List(issued);
+        var revokedList = AnonCredsHelpers.CreateFfiInt32List(revoked);
         var code = NativeMethods.anoncreds_update_revocation_status_list(
             credDef.Handle,
-            issuedJson,
-            revokedJson,
-            timestamp.ToString(),
-            out var updated,
-            out var _
+            revRegDef.Handle,
+            revRegDefPrivate.Handle,
+            this.Handle,
+            issuedList,
+            revokedList,
+            (long)timestamp,
+            out var updated
         );
         if (code != ErrorCode.Success)
             throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());

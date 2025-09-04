@@ -1,6 +1,7 @@
 // AnonCredsClient.cs
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
@@ -35,6 +36,30 @@ public class AnonCredsClient
         string? revListsJson
     )
     {
+        // Derive schema and cred def IDs from the provided JSON maps if not explicitly provided
+        string? schemaIdsJson = null;
+        string? credDefIdsJson = null;
+
+        try
+        {
+            var schemaMap = JsonSerializer.Deserialize<Dictionary<string, string>>(schemasJson);
+            if (schemaMap != null)
+                schemaIdsJson = JsonSerializer.Serialize(schemaMap.Keys.ToArray());
+        }
+        catch
+        { /* leave null if not a map */
+        }
+
+        try
+        {
+            var credDefMap = JsonSerializer.Deserialize<Dictionary<string, string>>(credDefsJson);
+            if (credDefMap != null)
+                credDefIdsJson = JsonSerializer.Serialize(credDefMap.Keys.ToArray());
+        }
+        catch
+        { /* leave null if not a map */
+        }
+
         var (presentation, _, _, _, _, _, _, _, _, _) = CreatePresentation(
             presReq,
             credentialsJson,
@@ -42,8 +67,8 @@ public class AnonCredsClient
             linkSecret,
             schemasJson,
             credDefsJson,
-            null,
-            null,
+            schemaIdsJson,
+            credDefIdsJson,
             revRegsJson,
             revListsJson
         );
@@ -103,6 +128,23 @@ public class AnonCredsClient
         Console.WriteLine("   DEBUG: Parsing credentials JSON");
         FfiCredentialEntryList credentialsList = ParseCredentialsJson(credentialsJson);
         Console.WriteLine("   DEBUG: Parsed credentials JSON successfully");
+        // Debug each entry for timestamp/rev_state presence
+        try
+        {
+            var dbgEntries = System.Text.Json.JsonSerializer.Deserialize<CredentialEntryJson[]>(
+                credentialsJson
+            );
+            if (dbgEntries != null)
+            {
+                foreach (var e in dbgEntries)
+                {
+                    Console.WriteLine(
+                        $"DEBUG Credentials entry -> Timestamp: {e.Timestamp?.ToString() ?? "<null>"}, RevState: {(string.IsNullOrEmpty(e.RevState) ? 0 : 1)}"
+                    );
+                }
+            }
+        }
+        catch { }
 
         Console.WriteLine("   DEBUG: Creating schema IDs list");
         var schemaIds = AnonCredsHelpers.CreateFfiStrList(schemaIdsJson);
@@ -135,8 +177,8 @@ public class AnonCredsClient
         }
 
         Console.WriteLine("   DEBUG: Creating credentials prove list");
-        // Create credentials_prove list based on presentation request
-        var credentialsProve = CreateCredentialsProveList(presReq.ToJson(), credentialsJson);
+        // Create credentials_prove list based on presentation request, excluding self-attested referents
+        var credentialsProve = CreateCredentialsProveList(presReq.ToJson(), selfAttestJson);
         Console.WriteLine("   DEBUG: Created credentials prove list successfully");
 
         var selfAttestNames = new FfiStrList();
@@ -152,6 +194,16 @@ public class AnonCredsClient
             );
             selfAttestValues = AnonCredsHelpers.CreateFfiStrListFromStrings(
                 selfAttested.Values.ToArray()
+            );
+        }
+
+        // Debug: dump first credential entry
+        if (credentialsList.Count.ToUInt32() > 0)
+        {
+            var entryPtr = credentialsList.Data;
+            var entry = Marshal.PtrToStructure<FfiCredentialEntry>(entryPtr);
+            Console.WriteLine(
+                $"DEBUG Credentials entry -> Timestamp: {entry.Timestamp}, RevState: {entry.RevState}"
             );
         }
 
@@ -322,10 +374,30 @@ public class AnonCredsClient
 
     private static FfiCredentialProveList CreateCredentialsProveList(
         string presReqJson,
-        string credentialsJson
+        string? selfAttestJson
     )
     {
         var proveList = new List<FfiCredentialProve>();
+
+        // Build a set of referents that are satisfied via self-attested values
+        HashSet<string> selfAttestedReferents = new(StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(selfAttestJson))
+        {
+            try
+            {
+                var map =
+                    JsonSerializer.Deserialize<Dictionary<string, string>>(selfAttestJson!)
+                    ?? new();
+                foreach (var k in map.Keys)
+                {
+                    selfAttestedReferents.Add(k);
+                }
+            }
+            catch
+            {
+                // ignore malformed self-attested JSON; treat as none
+            }
+        }
 
         using (var doc = JsonDocument.Parse(presReqJson))
         {
@@ -336,6 +408,9 @@ public class AnonCredsClient
                 foreach (var attr in requestedAttributes.EnumerateObject())
                 {
                     var referent = attr.Name;
+                    // Skip if this referent is self-attested
+                    if (selfAttestedReferents.Contains(referent))
+                        continue;
                     proveList.Add(
                         new FfiCredentialProve
                         {
@@ -385,8 +460,13 @@ public class AnonCredsClient
 
     private class CredentialEntryJson
     {
+        [JsonPropertyName("credential")]
         public string Credential { get; set; } = "";
+
+        [JsonPropertyName("timestamp")]
         public int? Timestamp { get; set; }
+
+        [JsonPropertyName("rev_state")]
         public string? RevState { get; set; }
     }
 }

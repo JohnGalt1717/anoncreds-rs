@@ -105,6 +105,24 @@ public struct FfiObjectHandleList
     public IntPtr Data; // POINTER(ObjectHandle)
 }
 
+// List of 32-bit integers used in revocation status list updates
+[StructLayout(LayoutKind.Sequential)]
+public struct FfiInt32List
+{
+    public UIntPtr Count; // size_t
+    public IntPtr Data; // pointer to int32_t
+}
+
+// Revocation configuration struct passed to create_credential
+[StructLayout(LayoutKind.Sequential)]
+public struct FfiCredRevInfo
+{
+    public long RegDef; // ObjectHandle (size_t)
+    public long RegDefPrivate; // ObjectHandle (size_t)
+    public long StatusList; // ObjectHandle (size_t)
+    public long RegIdx; // int64_t
+}
+
 // Non-revoked interval override types required by verify_presentation
 [StructLayout(LayoutKind.Sequential)]
 public struct FfiNonrevokedIntervalOverride

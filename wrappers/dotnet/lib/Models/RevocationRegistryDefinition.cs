@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
@@ -36,10 +37,9 @@ public class RevocationRegistryDefinition : AnonCredsObject
             tag,
             revType,
             maxCredNum,
-            tailsPath ?? "",
+            tailsPath ?? string.Empty,
             out var def,
-            out var pvt,
-            out var _
+            out var pvt
         );
         if (code != ErrorCode.Success)
             throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
@@ -53,13 +53,22 @@ public class RevocationRegistryDefinition : AnonCredsObject
     {
         get
         {
-            var json = ToJson();
-            var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("tails_location", out var tailsLocation))
+            // Prefer native getter for attribute to avoid JSON parsing mismatches
+            var code = NativeMethods.anoncreds_revocation_registry_definition_get_attribute(
+                this.Handle,
+                "tails_location",
+                out var ptr
+            );
+            if (code != ErrorCode.Success)
+                throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
+            try
             {
-                return tailsLocation.GetString() ?? "";
+                return Marshal.PtrToStringUTF8(ptr) ?? string.Empty;
             }
-            return "";
+            finally
+            {
+                NativeMethods.anoncreds_string_free(ptr);
+            }
         }
     }
 

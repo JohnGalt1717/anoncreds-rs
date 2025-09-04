@@ -223,8 +223,7 @@ internal static partial class NativeMethods
         long maxCredNum,
         string tailsPath,
         out long revRegDef,
-        out long revRegPvt,
-        out long revStatusList
+        out long revRegPvt
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
@@ -239,33 +238,33 @@ internal static partial class NativeMethods
         out long statusList
     );
 
-    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library)]
     internal static partial ErrorCode anoncreds_update_revocation_status_list(
-        long statusList,
-        string issuedJson,
-        string revokedJson,
-        string timestamp,
-        out long updatedList,
-        out long delta
-    );
-
-    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial ErrorCode anoncreds_create_revocation_state(
-        IntPtr credRevInfo,
+        long credDef,
         long revRegDef,
-        long statusList,
-        string timestamp,
-        string tailsPath,
-        out long revState
+        long revRegPriv,
+        long currentStatusList,
+        FfiInt32List issued,
+        FfiInt32List revoked,
+        long timestamp,
+        out long newStatusList
     );
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial ErrorCode anoncreds_update_revocation_state(
+    internal static partial ErrorCode anoncreds_create_or_update_revocation_state(
+        long revRegDef,
+        long revStatusList,
+        long revRegIndex,
+        string tailsPath,
         long revState,
-        long revRegDef,
-        long statusListDelta,
-        string timestamp,
-        string tailsPath,
-        out long updatedState
+        long oldRevStatusList,
+        out long revStateOut
+    );
+
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial ErrorCode anoncreds_revocation_registry_definition_get_attribute(
+        long handle,
+        string name,
+        out IntPtr value
     );
 }

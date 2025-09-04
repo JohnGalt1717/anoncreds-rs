@@ -82,6 +82,9 @@ namespace AnonCredsNet.Tests
                 null // no revocation status list
             );
 
+            // Process credential (binds to link secret) — required before using in presentation
+            var processedCredential = credential.Process(metadata, linkSecret, credDef, null);
+
             // Create presentation request (simplified to only use credential attributes for now)
             var nonce = AnonCredsClient.GenerateNonce();
             var presReqJson = JsonSerializer.Serialize(
@@ -116,7 +119,7 @@ namespace AnonCredsNet.Tests
                 {
                     new
                     {
-                        credential = credential.ToJson(),
+                        credential = processedCredential.ToJson(),
                         timestamp = (int?)null,
                         rev_state = (string?)null,
                     },
@@ -175,6 +178,7 @@ namespace AnonCredsNet.Tests
             credRequest.Dispose();
             metadata.Dispose();
             credential.Dispose();
+            processedCredential.Dispose();
             presReq.Dispose();
             presentation.Dispose();
         }

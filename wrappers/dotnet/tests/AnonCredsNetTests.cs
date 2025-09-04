@@ -41,20 +41,26 @@ public class AnonCredsNetTests
             "{\"support_revocation\": true}"
         );
 
-        // 4. Create Revocation Registry Definition and Status List
+        // 4. Create Revocation Registry Definition
         var timeCreateRevStatusList = 12ul;
-        (
-            RevocationRegistryDefinition revRegDef,
-            RevocationRegistryDefinitionPrivate revRegDefPrivate,
-            RevocationStatusList revocationStatusList
-        ) = RevocationStatusList.CreateRevocationRegistryDefinition(
+        var (revRegDef, revRegDefPrivate) = RevocationRegistryDefinition.Create(
             credDef,
             credDefId,
             issuerId,
             "some_tag",
             "CL_ACCUM",
             10,
-            "" // tailsPath
+            null
+        );
+        // Create initial Revocation Status List at the given timestamp
+        var revocationStatusList = RevocationStatusList.Create(
+            credDef,
+            revRegId,
+            revRegDef,
+            revRegDefPrivate,
+            issuerId,
+            true,
+            timeCreateRevStatusList
         );
 
         // 6. Create Link Secret
@@ -143,10 +149,10 @@ public class AnonCredsNetTests
             """;
         var presReq = PresentationRequest.FromJson(presReqJson);
 
-        // 13. Create Revocation State
+        // 13. Create Revocation State using the issued (updated) status list at timeAfterCreatingCred
         var revState = RevocationState.Create(
             revRegDef,
-            revocationStatusList,
+            issuedRevStatusList,
             revIdx,
             revRegDef.TailsLocation
         );

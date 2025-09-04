@@ -19,14 +19,13 @@ public class RevocationState : AnonCredsObject
         if (revRegDef == null || statusList == null || string.IsNullOrEmpty(tailsPath))
             throw new ArgumentNullException("Input parameters cannot be null or empty");
 
-        // Note: This is a simplified implementation. The actual native call may differ.
-        // For now, we'll use the existing native call with dummy values.
-        var code = NativeMethods.anoncreds_create_revocation_state(
-            IntPtr.Zero, // dummy credRevInfo
+        var code = NativeMethods.anoncreds_create_or_update_revocation_state(
             revRegDef.Handle,
             statusList.Handle,
-            revRegIndex.ToString(),
+            (long)revRegIndex,
             tailsPath,
+            0,
+            0,
             out var handle
         );
         if (code != ErrorCode.Success)
@@ -37,25 +36,26 @@ public class RevocationState : AnonCredsObject
     public static RevocationState Update(
         RevocationState revState,
         RevocationRegistryDefinition revRegDef,
-        RevocationStatusListDelta delta,
-        string timestamp,
-        string tailsPath
+        RevocationStatusList newStatusList,
+        uint revRegIndex,
+        string tailsPath,
+        RevocationStatusList? oldStatusList = null
     )
     {
         if (
             revState == null
             || revRegDef == null
-            || delta == null
-            || string.IsNullOrEmpty(timestamp)
+            || newStatusList == null
             || string.IsNullOrEmpty(tailsPath)
         )
             throw new ArgumentNullException("Input parameters cannot be null or empty");
-        var code = NativeMethods.anoncreds_update_revocation_state(
-            revState.Handle,
+        var code = NativeMethods.anoncreds_create_or_update_revocation_state(
             revRegDef.Handle,
-            delta.Handle,
-            timestamp,
+            newStatusList.Handle,
+            (long)revRegIndex,
             tailsPath,
+            revState.Handle,
+            oldStatusList?.Handle ?? 0,
             out var updated
         );
         if (code != ErrorCode.Success)

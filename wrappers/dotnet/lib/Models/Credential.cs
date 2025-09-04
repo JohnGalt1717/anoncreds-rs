@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
@@ -21,7 +22,8 @@ public sealed class Credential : AnonCredsObject
         string credValues,
         string? revRegId,
         string? tailsPath,
-        RevocationStatusList? revStatusList
+        RevocationStatusList? revStatusList,
+        CredentialRevocationConfig? revConfig = null
     )
     {
         if (
@@ -46,11 +48,40 @@ public sealed class Credential : AnonCredsObject
         var attrRawValues = AnonCredsHelpers.CreateFfiStrList(
             System.Text.Json.JsonSerializer.Serialize(credValuesDict.Values)
         );
-        var attrEncValues = AnonCredsHelpers.CreateFfiStrList(
-            System.Text.Json.JsonSerializer.Serialize(
-                Enumerable.Repeat<string?>(null, credValuesDict.Count)
+        // When encoded values are not provided, pass an empty list (count=0, data=NULL)
+        var attrEncValues = new FfiStrList { Count = 0, Data = IntPtr.Zero };
+
+        // Build optional revocation info struct
+        IntPtr revocationPtr = IntPtr.Zero;
+        try
+        {
+            if (
+                revConfig != null
+                && revConfig.RevRegDef != null
+                && revConfig.RevRegDefPrivate != null
+                && revConfig.RevStatusList != null
             )
-        );
+            {
+                var revInfo = new FfiCredRevInfo
+                {
+                    RegDef = revConfig.RevRegDef.Handle,
+                    RegDefPrivate = revConfig.RevRegDefPrivate.Handle,
+                    StatusList = revConfig.RevStatusList.Handle,
+                    RegIdx = (long)revConfig.RevRegIndex,
+                };
+                revocationPtr = Marshal.AllocHGlobal(Marshal.SizeOf<FfiCredRevInfo>());
+                Marshal.StructureToPtr(revInfo, revocationPtr, false);
+            }
+        }
+        catch
+        {
+            if (revocationPtr != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(revocationPtr);
+                revocationPtr = IntPtr.Zero;
+            }
+            throw;
+        }
 
         try
         {
@@ -62,7 +93,7 @@ public sealed class Credential : AnonCredsObject
                 attrNames,
                 attrRawValues,
                 attrEncValues,
-                IntPtr.Zero, // No revocation config for now
+                revocationPtr,
                 out var cred
             );
             if (code != ErrorCode.Success)
@@ -73,7 +104,10 @@ public sealed class Credential : AnonCredsObject
         {
             AnonCredsHelpers.FreeFfiStrList(attrNames);
             AnonCredsHelpers.FreeFfiStrList(attrRawValues);
-            AnonCredsHelpers.FreeFfiStrList(attrEncValues);
+            if (revocationPtr != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(revocationPtr);
+            }
         }
     }
 

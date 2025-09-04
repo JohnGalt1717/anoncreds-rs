@@ -72,23 +72,63 @@ internal static class AnonCredsHelpers
     )
         where T : AnonCredsObject
     {
-        var items =
-            JsonSerializer.Deserialize<string[]>(json)
-            ?? throw new InvalidOperationException("Invalid JSON array");
-        var objectHandles = new long[items.Length]; // Store long directly
-        var managedObjects = new T[items.Length];
+        // Accept either:
+        // - ["{...}", "{...}"] (array of JSON strings)
+        // - [{...}, {...}] (array of JSON objects)
+        // - { "id": "{...}", ... } (map of id -> JSON string)
+        // - { "id": {...}, ... } (map of id -> JSON object)
+        List<string> jsonItems = new();
 
-        for (var i = 0; i < items.Length; i++)
+        using (var doc = JsonDocument.Parse(json))
         {
-            var item = fromJson(items[i]);
-            managedObjects[i] = item;
-            objectHandles[i] = item.Handle; // Store handle directly as long
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in root.EnumerateArray())
+                {
+                    if (el.ValueKind == JsonValueKind.String)
+                        jsonItems.Add(
+                            el.GetString()
+                                ?? throw new InvalidOperationException("Null string element")
+                        );
+                    else
+                        jsonItems.Add(el.GetRawText());
+                }
+            }
+            else if (root.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in root.EnumerateObject())
+                {
+                    var val = prop.Value;
+                    if (val.ValueKind == JsonValueKind.String)
+                        jsonItems.Add(
+                            val.GetString()
+                                ?? throw new InvalidOperationException("Null string value")
+                        );
+                    else
+                        jsonItems.Add(val.GetRawText());
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException("Invalid JSON shape for object handle list");
+            }
         }
 
-        var ptr = Marshal.AllocHGlobal(items.Length * Marshal.SizeOf<long>());
-        Marshal.Copy(objectHandles, 0, ptr, items.Length);
+        var objectHandles = new long[jsonItems.Count];
+        var managedObjects = new T[jsonItems.Count];
 
-        var list = new FfiObjectHandleList { Count = (nuint)items.Length, Data = ptr };
+        for (var i = 0; i < jsonItems.Count; i++)
+        {
+            var item = fromJson(jsonItems[i]);
+            managedObjects[i] = item;
+            objectHandles[i] = item.Handle;
+        }
+
+        var ptr = Marshal.AllocHGlobal(jsonItems.Count * Marshal.SizeOf<long>());
+        Marshal.Copy(objectHandles, 0, ptr, jsonItems.Count);
+
+        var list = new FfiObjectHandleList { Count = (nuint)jsonItems.Count, Data = ptr };
         return (list, managedObjects);
     }
 
@@ -130,7 +170,11 @@ internal static class AnonCredsHelpers
         var ptrs = new IntPtr[strings.Length];
         for (var i = 0; i < strings.Length; i++)
         {
-            ptrs[i] = Marshal.StringToHGlobalAnsi(strings[i]);
+            // Allocate UTF-8 null-terminated strings
+            var utf8 = Encoding.UTF8.GetBytes(strings[i] + "\0");
+            var p = Marshal.AllocHGlobal(utf8.Length);
+            Marshal.Copy(utf8, 0, p, utf8.Length);
+            ptrs[i] = p;
         }
         var listPtr = Marshal.AllocHGlobal(strings.Length * IntPtr.Size);
         Marshal.Copy(ptrs, 0, listPtr, strings.Length);
@@ -142,11 +186,27 @@ internal static class AnonCredsHelpers
         var ptrs = new IntPtr[strings.Length];
         for (var i = 0; i < strings.Length; i++)
         {
-            ptrs[i] = Marshal.StringToHGlobalAnsi(strings[i]);
+            var utf8 = Encoding.UTF8.GetBytes(strings[i] + "\0");
+            var p = Marshal.AllocHGlobal(utf8.Length);
+            Marshal.Copy(utf8, 0, p, utf8.Length);
+            ptrs[i] = p;
         }
         var listPtr = Marshal.AllocHGlobal(strings.Length * IntPtr.Size);
         Marshal.Copy(ptrs, 0, listPtr, strings.Length);
         return new FfiStrList { Count = (nuint)strings.Length, Data = listPtr };
+    }
+
+    internal static FfiInt32List CreateFfiInt32List(ulong[]? values)
+    {
+        if (values == null || values.Length == 0)
+        {
+            return new FfiInt32List { Count = 0, Data = IntPtr.Zero };
+        }
+        var ints = values.Select(v => unchecked((int)v)).ToArray();
+        var size = sizeof(int) * ints.Length;
+        var ptr = Marshal.AllocHGlobal(size);
+        Marshal.Copy(ints, 0, ptr, ints.Length);
+        return new FfiInt32List { Count = (nuint)ints.Length, Data = ptr };
     }
 
     internal static void FreeFfiStrList(FfiStrList list)

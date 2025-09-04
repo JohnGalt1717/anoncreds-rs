@@ -8,18 +8,18 @@ namespace AnonCredsNet.Objects;
 
 public abstract class AnonCredsObject : IDisposable
 {
-    internal UIntPtr Handle { get; private set; }
+    public long Handle { get; private set; }
 
-    protected AnonCredsObject(UIntPtr handle)
+    protected AnonCredsObject(long handle)
     {
-        if (handle == UIntPtr.Zero)
+        if (handle == 0)
             throw new AnonCredsException(ErrorCode.CommonInvalidState, "Invalid native handle");
         Handle = handle;
     }
 
     public string ToJson()
     {
-        if (Handle == UIntPtr.Zero)
+        if (Handle == 0)
             throw new ObjectDisposedException(GetType().Name);
         var code = NativeMethods.anoncreds_object_get_json(Handle, out var buffer);
         if (code != ErrorCode.Success)
@@ -59,9 +59,9 @@ public abstract class AnonCredsObject : IDisposable
             )!;
     }
 
-    private static ErrorCode FromJsonInternal(Type type, string json, out UIntPtr handle)
+    private static ErrorCode FromJsonInternal(Type type, string json, out long handle)
     {
-        handle = UIntPtr.Zero;
+        handle = 0;
         var buffer = AnonCredsHelpers.CreateByteBuffer(json);
 
         try
@@ -130,10 +130,10 @@ public abstract class AnonCredsObject : IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (Handle == UIntPtr.Zero)
+        if (Handle == 0)
             return;
         NativeMethods.anoncreds_object_free(Handle);
-        Handle = UIntPtr.Zero;
+        Handle = 0;
     }
 
     ~AnonCredsObject() => Dispose(false);

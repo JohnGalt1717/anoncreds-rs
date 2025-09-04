@@ -2,7 +2,7 @@ namespace AnonCredsNet.Objects;
 
 public class KeyCorrectnessProof : AnonCredsObject
 {
-    internal KeyCorrectnessProof(UIntPtr handle)
+    internal KeyCorrectnessProof(long handle)
         : base(handle) { }
 
     internal static KeyCorrectnessProof FromJson(string json) =>

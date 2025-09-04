@@ -1,13 +1,14 @@
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
+using AnonCredsNet.Models;
 using AnonCredsNet.Objects;
 
 namespace AnonCredsNet.Requests;
 
 public class CredentialRequest : AnonCredsObject
 {
-    private CredentialRequest(UIntPtr handle)
+    private CredentialRequest(long handle)
         : base(handle) { }
 
     public static (CredentialRequest Request, CredentialRequestMetadata Metadata) Create(
@@ -30,7 +31,7 @@ public class CredentialRequest : AnonCredsObject
             entropy,
             proverDid,
             credDef.Handle,
-            linkSecret.Value,
+            linkSecret.Handle,
             linkSecretId,
             credOffer.Handle,
             out var req,

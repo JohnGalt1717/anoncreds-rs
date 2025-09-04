@@ -63,7 +63,7 @@ internal static class AnonCredsHelpers
         {
             Marshal.StructureToPtr(objectHandles[i], ptr + i * size, false);
         }
-        return new FfiList { Data = ptr, Count = (UIntPtr)items.Length };
+        return new FfiList { Data = ptr, Count = (nuint)items.Length };
     }
 
     internal static (FfiObjectHandleList list, T[] objects) CreateFfiObjectHandleListWithObjects<T>(
@@ -75,23 +75,20 @@ internal static class AnonCredsHelpers
         var items =
             JsonSerializer.Deserialize<string[]>(json)
             ?? throw new InvalidOperationException("Invalid JSON array");
-        var objectHandles = new UIntPtr[items.Length]; // Store UIntPtr directly
+        var objectHandles = new long[items.Length]; // Store long directly
         var managedObjects = new T[items.Length];
 
         for (var i = 0; i < items.Length; i++)
         {
             var item = fromJson(items[i]);
             managedObjects[i] = item;
-            objectHandles[i] = item.Handle; // Store handle directly as UIntPtr
+            objectHandles[i] = item.Handle; // Store handle directly as long
         }
 
-        var ptr = Marshal.AllocHGlobal(items.Length * UIntPtr.Size);
-        for (var i = 0; i < items.Length; i++)
-        {
-            Marshal.WriteIntPtr(ptr, i * UIntPtr.Size, (IntPtr)objectHandles[i]);
-        }
+        var ptr = Marshal.AllocHGlobal(items.Length * Marshal.SizeOf<long>());
+        Marshal.Copy(objectHandles, 0, ptr, items.Length);
 
-        var list = new FfiObjectHandleList { Count = (UIntPtr)items.Length, Data = ptr };
+        var list = new FfiObjectHandleList { Count = (nuint)items.Length, Data = ptr };
         return (list, managedObjects);
     }
 
@@ -137,7 +134,19 @@ internal static class AnonCredsHelpers
         }
         var listPtr = Marshal.AllocHGlobal(strings.Length * IntPtr.Size);
         Marshal.Copy(ptrs, 0, listPtr, strings.Length);
-        return new FfiStrList { Count = (UIntPtr)strings.Length, Data = listPtr };
+        return new FfiStrList { Count = (nuint)strings.Length, Data = listPtr };
+    }
+
+    internal static FfiStrList CreateFfiStrListFromStrings(string[] strings)
+    {
+        var ptrs = new IntPtr[strings.Length];
+        for (var i = 0; i < strings.Length; i++)
+        {
+            ptrs[i] = Marshal.StringToHGlobalAnsi(strings[i]);
+        }
+        var listPtr = Marshal.AllocHGlobal(strings.Length * IntPtr.Size);
+        Marshal.Copy(ptrs, 0, listPtr, strings.Length);
+        return new FfiStrList { Count = (nuint)strings.Length, Data = listPtr };
     }
 
     internal static void FreeFfiStrList(FfiStrList list)
@@ -215,7 +224,7 @@ internal static class AnonCredsHelpers
             || string.IsNullOrEmpty(credDefIdsJson)
         )
             throw new ArgumentNullException("Required parameters cannot be null or empty");
-        if (presentation.Handle == UIntPtr.Zero || presReq.Handle == UIntPtr.Zero)
+        if (presentation.Handle == 0 || presReq.Handle == 0)
             throw new ObjectDisposedException("Presentation or PresentationRequest is disposed");
         if (schemasJson.Length > 100000 || credDefsJson.Length > 100000)
             throw new ArgumentException("JSON input too large");
@@ -233,7 +242,7 @@ internal static class AnonCredsHelpers
         Console.WriteLine($"Created {credDefsList.Count} credential definitions");
         var (revRegDefsList, revRegDefsObjects) = string.IsNullOrEmpty(revRegDefsJson)
             ? (
-                new FfiObjectHandleList { Count = UIntPtr.Zero, Data = IntPtr.Zero },
+                new FfiObjectHandleList { Count = 0, Data = IntPtr.Zero },
                 Array.Empty<RevocationRegistryDefinition>()
             )
             : CreateFfiObjectHandleListWithObjects(
@@ -242,7 +251,7 @@ internal static class AnonCredsHelpers
             );
         var (revStatusLists, revStatusObjects) = string.IsNullOrEmpty(revStatusListsJson)
             ? (
-                new FfiObjectHandleList { Count = UIntPtr.Zero, Data = IntPtr.Zero },
+                new FfiObjectHandleList { Count = 0, Data = IntPtr.Zero },
                 Array.Empty<RevocationStatusList>()
             )
             : CreateFfiObjectHandleListWithObjects(
@@ -255,9 +264,9 @@ internal static class AnonCredsHelpers
         var schemaIds = CreateFfiStrList(schemaIdsJson);
         var credDefIds = CreateFfiStrList(credDefIdsJson);
         var revRegDefIds =
-            !string.IsNullOrEmpty(revRegDefIdsJson) && revRegDefsList.Count > UIntPtr.Zero
+            !string.IsNullOrEmpty(revRegDefIdsJson) && revRegDefsList.Count > 0
                 ? CreateFfiStrList(revRegDefIdsJson)
-                : new FfiStrList { Count = UIntPtr.Zero, Data = IntPtr.Zero };
+                : new FfiStrList { Count = 0, Data = IntPtr.Zero };
 
         // Debug: Print what we're passing to verification
         Console.WriteLine($"Presentation handle: {presentation.Handle}");
@@ -272,11 +281,7 @@ internal static class AnonCredsHelpers
         Console.WriteLine($"CredDef IDs JSON: {credDefIdsJson}");
 
         // Empty non-revocation override list for now
-        var nonRevocList = new FfiNonrevokedIntervalOverrideList
-        {
-            Count = UIntPtr.Zero,
-            Data = IntPtr.Zero,
-        };
+        var nonRevocList = new FfiNonrevokedIntervalOverrideList { Count = 0, Data = IntPtr.Zero };
 
         Console.WriteLine("Calling native verify function...");
         try
@@ -301,7 +306,7 @@ internal static class AnonCredsHelpers
             Console.WriteLine($"schemasList struct:");
             Console.WriteLine($"  Count: {schemasList.Count} (UIntPtr size: {UIntPtr.Size})");
             Console.WriteLine($"  Data: {schemasList.Data}");
-            if (schemasList.Data != IntPtr.Zero && schemasList.Count.ToUInt64() > 0)
+            if (schemasList.Data != IntPtr.Zero && schemasList.Count > 0)
             {
                 var handleValue = Marshal.ReadIntPtr(schemasList.Data);
                 Console.WriteLine($"  First handle value: {handleValue}");
@@ -310,7 +315,7 @@ internal static class AnonCredsHelpers
             Console.WriteLine($"schemaIds struct:");
             Console.WriteLine($"  Count: {schemaIds.Count} (UIntPtr size: {UIntPtr.Size})");
             Console.WriteLine($"  Data: {schemaIds.Data}");
-            if (schemaIds.Data != IntPtr.Zero && schemaIds.Count.ToUInt64() > 0)
+            if (schemaIds.Data != IntPtr.Zero && schemaIds.Count > 0)
             {
                 var strPtr = Marshal.ReadIntPtr(schemaIds.Data);
                 if (strPtr != IntPtr.Zero)
@@ -323,7 +328,7 @@ internal static class AnonCredsHelpers
             Console.WriteLine($"credDefsList struct:");
             Console.WriteLine($"  Count: {credDefsList.Count} (UIntPtr size: {UIntPtr.Size})");
             Console.WriteLine($"  Data: {credDefsList.Data}");
-            if (credDefsList.Data != IntPtr.Zero && credDefsList.Count.ToUInt64() > 0)
+            if (credDefsList.Data != IntPtr.Zero && credDefsList.Count > 0)
             {
                 var handleValue = Marshal.ReadIntPtr(credDefsList.Data);
                 Console.WriteLine($"  First handle value: {handleValue}");
@@ -332,7 +337,7 @@ internal static class AnonCredsHelpers
             Console.WriteLine($"credDefIds struct:");
             Console.WriteLine($"  Count: {credDefIds.Count} (UIntPtr size: {UIntPtr.Size})");
             Console.WriteLine($"  Data: {credDefIds.Data}");
-            if (credDefIds.Data != IntPtr.Zero && credDefIds.Count.ToUInt64() > 0)
+            if (credDefIds.Data != IntPtr.Zero && credDefIds.Count > 0)
             {
                 var strPtr = Marshal.ReadIntPtr(credDefIds.Data);
                 if (strPtr != IntPtr.Zero)
@@ -353,7 +358,7 @@ internal static class AnonCredsHelpers
             Console.WriteLine($"IntPtr size: {IntPtr.Size}");
 
             // Let's manually create a struct and see how it's marshaled
-            var testStruct = new FfiList { Count = (UIntPtr)123, Data = (IntPtr)456 };
+            var testStruct = new FfiList { Count = (nuint)123, Data = (IntPtr)456 };
             var structSize = Marshal.SizeOf<FfiList>();
             var structPtr = Marshal.AllocHGlobal(structSize);
             try

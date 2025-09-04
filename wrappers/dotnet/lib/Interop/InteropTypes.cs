@@ -32,8 +32,8 @@ public enum ErrorCode : int
 [StructLayout(LayoutKind.Sequential)]
 public struct ObjectHandle
 {
-    // Match C typedef size_t ObjectHandle; use pointer-sized integer
-    public UIntPtr Value;
+    // Match C typedef i64 ObjectHandle;
+    public long Value;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -69,10 +69,10 @@ internal struct AnoncredsPresentationRequest
 [StructLayout(LayoutKind.Sequential)]
 internal struct FfiCredentialEntry
 {
-    // C layout uses ObjectHandle (size_t), i32 timestamp, ObjectHandle
-    public UIntPtr Credential;
+    // C layout uses ObjectHandle (i64), i32 timestamp, ObjectHandle
+    public long Credential;
     public int Timestamp;
-    public UIntPtr RevState;
+    public long RevState;
 }
 
 [StructLayout(LayoutKind.Sequential)]

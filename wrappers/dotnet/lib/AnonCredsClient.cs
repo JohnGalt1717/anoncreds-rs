@@ -4,6 +4,7 @@ using System.Text.Json;
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
+using AnonCredsNet.Models;
 using AnonCredsNet.Objects;
 using AnonCredsNet.Requests;
 
@@ -31,8 +32,47 @@ public class AnonCredsClient
         LinkSecret linkSecret,
         string schemasJson,
         string credDefsJson,
-        string schemaIdsJson,
-        string credDefIdsJson
+        string? revRegsJson,
+        string? revListsJson
+    )
+    {
+        var (presentation, _, _, _, _, _, _, _, _, _) = CreatePresentation(
+            presReq,
+            credentialsJson,
+            selfAttestJson,
+            linkSecret,
+            schemasJson,
+            credDefsJson,
+            null,
+            null,
+            revRegsJson,
+            revListsJson
+        );
+        return presentation;
+    }
+
+    public (
+        Presentation presentation,
+        FfiStrList schemaIds,
+        FfiObjectHandleList schemas,
+        FfiStrList credDefIds,
+        FfiObjectHandleList credDefs,
+        FfiStrList revRegIds,
+        FfiObjectHandleList revRegs,
+        FfiStrList revListIds,
+        FfiObjectHandleList revLists,
+        FfiCredentialEntryList credentials
+    ) CreatePresentation(
+        PresentationRequest presReq,
+        string credentialsJson,
+        string? selfAttestJson,
+        LinkSecret linkSecret,
+        string schemasJson,
+        string credDefsJson,
+        string? schemaIdsJson,
+        string? credDefIdsJson,
+        string? revRegsJson,
+        string? revListsJson
     )
     {
         Console.WriteLine("   DEBUG: Entering CreatePresentation");
@@ -66,7 +106,6 @@ public class AnonCredsClient
         Console.WriteLine("   DEBUG: Parsed credentials JSON successfully");
 
         Console.WriteLine("   DEBUG: Creating schema IDs list");
-        // Use the provided IDs
         var schemaIds = AnonCredsHelpers.CreateFfiStrList(schemaIdsJson);
         Console.WriteLine("   DEBUG: Created schema IDs list successfully");
 
@@ -74,40 +113,77 @@ public class AnonCredsClient
         var credDefIds = AnonCredsHelpers.CreateFfiStrList(credDefIdsJson);
         Console.WriteLine("   DEBUG: Created credDef IDs list successfully");
 
+        var revRegIds = new FfiStrList();
+        var revRegsList = new FfiObjectHandleList();
+        var revListsList = new FfiObjectHandleList();
+
+        if (!string.IsNullOrEmpty(revRegsJson))
+        {
+            var (revRegs, _) = AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
+                revRegsJson,
+                RevocationRegistryDefinition.FromJson
+            );
+            revRegsList = revRegs;
+        }
+
+        if (!string.IsNullOrEmpty(revListsJson))
+        {
+            var (revLists, _) = AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
+                revListsJson,
+                RevocationStatusList.FromJson
+            );
+            revListsList = revLists;
+        }
+
         Console.WriteLine("   DEBUG: Creating credentials prove list");
         // Create credentials_prove list based on presentation request
         var credentialsProve = CreateCredentialsProveList(presReq.ToJson(), credentialsJson);
         Console.WriteLine("   DEBUG: Created credentials prove list successfully");
 
-        Console.WriteLine("   DEBUG: About to call Presentation.Create");
-        try
+        var selfAttestNames = new FfiStrList();
+        var selfAttestValues = new FfiStrList();
+
+        if (!string.IsNullOrEmpty(selfAttestJson))
         {
-            return Presentation.Create(
-                presReq.Handle,
-                credentialsList,
-                credentialsProve,
-                selfAttestJson,
-                linkSecret,
-                schemasList,
-                schemaIds,
-                credDefsList,
-                credDefIds
+            var selfAttested =
+                JsonSerializer.Deserialize<Dictionary<string, string>>(selfAttestJson)
+                ?? new Dictionary<string, string>();
+            selfAttestNames = AnonCredsHelpers.CreateFfiStrListFromStrings(
+                selfAttested.Keys.ToArray()
+            );
+            selfAttestValues = AnonCredsHelpers.CreateFfiStrListFromStrings(
+                selfAttested.Values.ToArray()
             );
         }
-        finally
-        {
-            // Dispose managed objects after the call
-            foreach (var obj in schemasObjects)
-                obj?.Dispose();
-            foreach (var obj in credDefsObjects)
-                obj?.Dispose();
 
-            // Note: schemasList, credDefsList, credentialsList, and credentialsProve
-            // are already freed by Presentation.Create, so we don't free them here
-            // to avoid double-free issues
-            AnonCredsHelpers.FreeFfiStrList(schemaIds);
-            AnonCredsHelpers.FreeFfiStrList(credDefIds);
-        }
+        var presentation = Presentation.Create(
+            presReq.Handle,
+            credentialsList,
+            credentialsProve,
+            selfAttestNames,
+            selfAttestValues,
+            linkSecret,
+            schemasList,
+            schemaIds,
+            credDefsList,
+            credDefIds,
+            revRegsList,
+            revRegIds,
+            revListsList
+        );
+
+        return (
+            presentation,
+            schemaIds,
+            schemasList,
+            credDefIds,
+            credDefsList,
+            revRegIds,
+            revRegsList,
+            new FfiStrList(),
+            revListsList,
+            credentialsList
+        );
     }
 
     public bool VerifyPresentation(
@@ -159,8 +235,8 @@ public class AnonCredsClient
         CredentialRequest request,
         string credValues,
         string? revRegId,
-        string? tailsPath,
-        RevocationStatusList? revStatusList
+        RevocationConfig? revConfig,
+        string? tailsPath
     )
     {
         if (
@@ -179,8 +255,8 @@ public class AnonCredsClient
             request,
             credValues,
             revRegId,
-            tailsPath,
-            revStatusList
+            revConfig,
+            tailsPath
         );
         return credential;
     }
@@ -197,7 +273,7 @@ public class AnonCredsClient
         {
             var entry = entries[i];
             var credBuffer = AnonCredsHelpers.CreateByteBuffer(entry.Credential);
-            UIntPtr credHandle;
+            long credHandle;
             ErrorCode result;
             try
             {
@@ -210,7 +286,7 @@ public class AnonCredsClient
             if (result != ErrorCode.Success)
                 throw new AnonCredsException(result, AnonCredsHelpers.GetCurrentError());
 
-            UIntPtr revStateHandle = UIntPtr.Zero;
+            long revStateHandle = 0;
             if (!string.IsNullOrEmpty(entry.RevState))
             {
                 var revStateBuffer = AnonCredsHelpers.CreateByteBuffer(entry.RevState);
@@ -245,7 +321,7 @@ public class AnonCredsClient
                 false
             );
         }
-        return new FfiCredentialEntryList { Data = ptr, Count = (UIntPtr)ffiEntries.Length };
+        return new FfiCredentialEntryList { Data = ptr, Count = (nuint)ffiEntries.Length };
     }
 
     private static FfiCredentialProveList CreateCredentialsProveList(
@@ -253,108 +329,62 @@ public class AnonCredsClient
         string credentialsJson
     )
     {
-        Console.WriteLine("      DEBUG: Creating credentials prove list");
-        Console.WriteLine($"      DEBUG: Presentation request JSON: {presReqJson}");
-        Console.WriteLine($"      DEBUG: Credentials JSON: {credentialsJson}");
-
-        var credentialsArray = System.Text.Json.JsonSerializer.Deserialize<CredentialEntryJson[]>(
-            credentialsJson
-        );
-
-        if (credentialsArray == null || credentialsArray.Length == 0)
-        {
-            Console.WriteLine("      DEBUG: No credentials, returning empty list");
-            return new FfiCredentialProveList { Data = IntPtr.Zero, Count = UIntPtr.Zero };
-        }
-
-        Console.WriteLine($"      DEBUG: Found {credentialsArray.Length} credentials");
         var proveList = new List<FfiCredentialProve>();
 
-        // Parse the presentation request JSON to get requested attributes and predicates
-        using var doc = System.Text.Json.JsonDocument.Parse(presReqJson);
-        var root = doc.RootElement;
-
-        // Handle requested attributes
-        if (root.TryGetProperty("requested_attributes", out var reqAttrs))
+        using (var doc = JsonDocument.Parse(presReqJson))
         {
-            foreach (var attrProp in reqAttrs.EnumerateObject())
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("requested_attributes", out var requestedAttributes))
             {
-                string referent = attrProp.Name;
-                Console.WriteLine($"      DEBUG: Processing attribute referent: {referent}");
+                foreach (var attr in requestedAttributes.EnumerateObject())
+                {
+                    var referent = attr.Name;
+                    proveList.Add(
+                        new FfiCredentialProve
+                        {
+                            EntryIdx = 0,
+                            Referent = Marshal.StringToHGlobalAnsi(referent),
+                            IsPredicate = 0,
+                            Reveal = 1,
+                        }
+                    );
+                }
+            }
 
-                // Check if this has "name" or "names" property
-                var attrValue = attrProp.Value;
-                bool hasNames = attrValue.TryGetProperty("names", out _);
-                bool hasName = attrValue.TryGetProperty("name", out _);
-
-                Console.WriteLine(
-                    $"      DEBUG: Referent {referent} - hasName: {hasName}, hasNames: {hasNames}"
-                );
-
-                // For simplicity, map to first credential (index 0)
-                // attr2_referent should be unrevealed based on Rust test pattern
-                byte reveal = referent == "attr2_referent" ? (byte)0 : (byte)1;
-
-                Console.WriteLine($"      DEBUG: Setting reveal={reveal} for referent {referent}");
-
-                proveList.Add(
-                    new FfiCredentialProve
-                    {
-                        EntryIdx = 0, // Use first credential
-                        Referent = Marshal.StringToHGlobalAnsi(referent),
-                        IsPredicate = 0, // False - this is an attribute
-                        Reveal = reveal, // Based on referent name
-                    }
-                );
+            if (root.TryGetProperty("requested_predicates", out var requestedPredicates))
+            {
+                foreach (var pred in requestedPredicates.EnumerateObject())
+                {
+                    var referent = pred.Name;
+                    proveList.Add(
+                        new FfiCredentialProve
+                        {
+                            EntryIdx = 0,
+                            Referent = Marshal.StringToHGlobalAnsi(referent),
+                            IsPredicate = 1,
+                            Reveal = 0,
+                        }
+                    );
+                }
             }
         }
-
-        // Handle requested predicates
-        if (root.TryGetProperty("requested_predicates", out var reqPreds))
-        {
-            foreach (var predProp in reqPreds.EnumerateObject())
-            {
-                string referent = predProp.Name;
-                Console.WriteLine($"      DEBUG: Processing predicate referent: {referent}");
-
-                // For predicates, map to first credential but don't reveal value
-                proveList.Add(
-                    new FfiCredentialProve
-                    {
-                        EntryIdx = 0, // Use first credential
-                        Referent = Marshal.StringToHGlobalAnsi(referent),
-                        IsPredicate = 1, // True - this is a predicate
-                        Reveal = 0, // False - don't reveal the attribute value for predicates
-                    }
-                );
-            }
-        }
-
-        Console.WriteLine($"      DEBUG: Created {proveList.Count} prove entries");
 
         if (proveList.Count == 0)
         {
-            return new FfiCredentialProveList { Data = IntPtr.Zero, Count = UIntPtr.Zero };
+            return new FfiCredentialProveList { Data = IntPtr.Zero, Count = 0 };
         }
 
-        // Allocate native memory for the prove list
         var proveArray = proveList.ToArray();
         var size = Marshal.SizeOf<FfiCredentialProve>();
         var ptr = Marshal.AllocHGlobal(size * proveArray.Length);
 
-        Console.WriteLine(
-            $"      DEBUG: Allocated {size * proveArray.Length} bytes for {proveArray.Length} entries"
-        );
-
         for (int i = 0; i < proveArray.Length; i++)
         {
-            Console.WriteLine(
-                $"      DEBUG: Entry {i}: EntryIdx={proveArray[i].EntryIdx}, IsPredicate={proveArray[i].IsPredicate}, Reveal={proveArray[i].Reveal}"
-            );
             Marshal.StructureToPtr(proveArray[i], ptr + (i * size), false);
         }
 
-        return new FfiCredentialProveList { Data = ptr, Count = (UIntPtr)proveArray.Length };
+        return new FfiCredentialProveList { Data = ptr, Count = (nuint)proveArray.Length };
     }
 
     private class CredentialEntryJson

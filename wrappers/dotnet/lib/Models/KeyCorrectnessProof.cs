@@ -1,4 +1,4 @@
-namespace AnonCredsNet.Objects;
+namespace AnonCredsNet.Models;
 
 public class KeyCorrectnessProof : AnonCredsObject
 {

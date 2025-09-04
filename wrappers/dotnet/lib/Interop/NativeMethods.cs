@@ -11,7 +11,7 @@ internal static partial class NativeMethods
     internal static partial ErrorCode anoncreds_get_current_error(out IntPtr errorJson);
 
     [LibraryImport(Library)]
-    internal static partial ErrorCode anoncreds_create_link_secret(out long handle);
+    internal static partial ErrorCode anoncreds_create_link_secret(out IntPtr linkSecret);
 
     [LibraryImport(Library)]
     internal static partial void anoncreds_string_free(IntPtr str);
@@ -153,7 +153,7 @@ internal static partial class NativeMethods
         string? entropy,
         string? proverDid,
         long credDef,
-        long linkSecret,
+        string linkSecret,
         string linkSecretId,
         long credOffer,
         out long request,
@@ -177,7 +177,7 @@ internal static partial class NativeMethods
     internal static partial ErrorCode anoncreds_process_credential(
         long credential,
         long requestMetadata,
-        long linkSecret,
+        string linkSecret,
         long credDef,
         long revRegDef,
         out long processedCredential
@@ -190,7 +190,7 @@ internal static partial class NativeMethods
         FfiCredentialProveList credentialsProve,
         FfiStrList selfAttestNames,
         FfiStrList selfAttestValues,
-        long linkSecret,
+        string linkSecret,
         FfiObjectHandleList schemas,
         FfiStrList schemaIds,
         FfiObjectHandleList credDefs,
@@ -216,10 +216,11 @@ internal static partial class NativeMethods
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_revocation_registry_def(
         long credDef,
+        string credDefId,
         string issuerId,
         string tag,
         string revType,
-        string config,
+        long maxCredNum,
         string tailsPath,
         out long revRegDef,
         out long revRegPvt,
@@ -228,12 +229,13 @@ internal static partial class NativeMethods
 
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_create_revocation_status_list(
-        string issuerId,
+        long credDef,
+        string revRegDefId,
         long revRegDef,
-        string timestamp,
-        [MarshalAs(UnmanagedType.I1)] bool issued,
-        [MarshalAs(UnmanagedType.I1)] bool revoked,
-        string tailsPath,
+        long revRegDefPrivate,
+        string issuerId,
+        [MarshalAs(UnmanagedType.I1)] bool issuanceByDefault,
+        long timestamp,
         out long statusList
     );
 

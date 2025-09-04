@@ -1,10 +1,9 @@
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
-using AnonCredsNet.Models;
 using AnonCredsNet.Requests;
 
-namespace AnonCredsNet.Objects;
+namespace AnonCredsNet.Models;
 
 public sealed class Credential : AnonCredsObject
 {
@@ -80,16 +79,18 @@ public sealed class Credential : AnonCredsObject
 
     public Credential Process(
         CredentialRequestMetadata credReqMetadata,
-        LinkSecret linkSecret,
+        string linkSecret,
         CredentialDefinition credDef,
         RevocationRegistryDefinition? revRegDef
     )
     {
+        if (string.IsNullOrEmpty(linkSecret))
+            throw new ArgumentNullException(nameof(linkSecret));
         var revRegDefHandle = revRegDef?.Handle ?? 0;
         var code = NativeMethods.anoncreds_process_credential(
             Handle,
             credReqMetadata.Handle,
-            linkSecret.Handle,
+            linkSecret,
             credDef.Handle,
             revRegDefHandle,
             out var newCredHandle

@@ -2,7 +2,6 @@ using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
 using AnonCredsNet.Models;
-using AnonCredsNet.Objects;
 
 namespace AnonCredsNet.Requests;
 
@@ -13,7 +12,7 @@ public class CredentialRequest : AnonCredsObject
 
     public static (CredentialRequest Request, CredentialRequestMetadata Metadata) Create(
         CredentialDefinition credDef,
-        LinkSecret linkSecret,
+        string linkSecret,
         string linkSecretId,
         CredentialOffer credOffer,
         string? entropy = null,
@@ -22,7 +21,7 @@ public class CredentialRequest : AnonCredsObject
     {
         if (
             credDef == null
-            || linkSecret == null
+            || string.IsNullOrEmpty(linkSecret)
             || string.IsNullOrEmpty(linkSecretId)
             || credOffer == null
         )
@@ -31,7 +30,7 @@ public class CredentialRequest : AnonCredsObject
             entropy,
             proverDid,
             credDef.Handle,
-            linkSecret.Handle,
+            linkSecret,
             linkSecretId,
             credOffer.Handle,
             out var req,

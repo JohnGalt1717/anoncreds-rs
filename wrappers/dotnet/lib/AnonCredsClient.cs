@@ -5,7 +5,6 @@ using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
 using AnonCredsNet.Models;
-using AnonCredsNet.Objects;
 using AnonCredsNet.Requests;
 
 namespace AnonCredsNet;
@@ -29,7 +28,7 @@ public class AnonCredsClient
         PresentationRequest presReq,
         string credentialsJson,
         string? selfAttestJson,
-        LinkSecret linkSecret,
+        string linkSecret,
         string schemasJson,
         string credDefsJson,
         string? revRegsJson,
@@ -66,7 +65,7 @@ public class AnonCredsClient
         PresentationRequest presReq,
         string credentialsJson,
         string? selfAttestJson,
-        LinkSecret linkSecret,
+        string linkSecret,
         string schemasJson,
         string credDefsJson,
         string? schemaIdsJson,
@@ -79,7 +78,7 @@ public class AnonCredsClient
         if (
             presReq == null
             || string.IsNullOrEmpty(credentialsJson)
-            || linkSecret == null
+            || string.IsNullOrEmpty(linkSecret)
             || string.IsNullOrEmpty(schemasJson)
             || string.IsNullOrEmpty(credDefsJson)
             || string.IsNullOrEmpty(schemaIdsJson)
@@ -90,14 +89,14 @@ public class AnonCredsClient
         Console.WriteLine("   DEBUG: Creating schemas list from JSON");
         var (schemasList, schemasObjects) = AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
             schemasJson,
-            AnonCredsNet.Objects.Schema.FromJson
+            Schema.FromJson
         );
         Console.WriteLine("   DEBUG: Created schemas list successfully");
 
         Console.WriteLine("   DEBUG: Creating credDefs list from JSON");
         var (credDefsList, credDefsObjects) = AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
             credDefsJson,
-            AnonCredsNet.Objects.CredentialDefinition.FromJson
+            CredentialDefinition.FromJson
         );
         Console.WriteLine("   DEBUG: Created credDefs list successfully");
 
@@ -166,10 +165,7 @@ public class AnonCredsClient
             schemasList,
             schemaIds,
             credDefsList,
-            credDefIds,
-            revRegsList,
-            revRegIds,
-            revListsList
+            credDefIds
         );
 
         return (
@@ -235,7 +231,7 @@ public class AnonCredsClient
         CredentialRequest request,
         string credValues,
         string? revRegId,
-        RevocationConfig? revConfig,
+        CredentialRevocationConfig? revConfig,
         string? tailsPath
     )
     {
@@ -255,8 +251,8 @@ public class AnonCredsClient
             request,
             credValues,
             revRegId,
-            revConfig,
-            tailsPath
+            tailsPath,
+            revConfig?.RevStatusList
         );
         return credential;
     }

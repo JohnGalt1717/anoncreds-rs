@@ -4,7 +4,7 @@ using AnonCredsNet.Interop;
 using AnonCredsNet.Models;
 using AnonCredsNet.Requests;
 
-namespace AnonCredsNet.Objects;
+namespace AnonCredsNet.Models;
 
 public sealed class Presentation : AnonCredsObject
 {
@@ -17,7 +17,7 @@ public sealed class Presentation : AnonCredsObject
         FfiCredentialProveList credentialsProve,
         FfiStrList selfAttestNames,
         FfiStrList selfAttestValues,
-        LinkSecret linkSecret,
+        string linkSecret,
         FfiObjectHandleList schemasList,
         FfiStrList schemaIds,
         FfiObjectHandleList credDefsList,
@@ -26,7 +26,7 @@ public sealed class Presentation : AnonCredsObject
     {
         if (
             presReqHandle == 0
-            || linkSecret == null
+            || string.IsNullOrEmpty(linkSecret)
             || schemasList.Count == 0
             || credDefsList.Count == 0
             || schemaIds.Count == 0
@@ -42,7 +42,7 @@ public sealed class Presentation : AnonCredsObject
                 credentialsProve,
                 selfAttestNames,
                 selfAttestValues,
-                linkSecret.Handle,
+                linkSecret,
                 schemasList,
                 schemaIds,
                 credDefsList,

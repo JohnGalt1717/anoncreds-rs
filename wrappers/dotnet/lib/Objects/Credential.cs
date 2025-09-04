@@ -1,13 +1,14 @@
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Helpers;
 using AnonCredsNet.Interop;
+using AnonCredsNet.Models;
 using AnonCredsNet.Requests;
 
 namespace AnonCredsNet.Objects;
 
 public sealed class Credential : AnonCredsObject
 {
-    private Credential(UIntPtr handle)
+    private Credential(long handle)
         : base(handle) { }
 
     /// <summary>
@@ -77,29 +78,27 @@ public sealed class Credential : AnonCredsObject
         }
     }
 
-    internal static Credential Process(
-        Credential credential,
-        CredentialRequestMetadata metadata,
+    public Credential Process(
+        CredentialRequestMetadata credReqMetadata,
         LinkSecret linkSecret,
         CredentialDefinition credDef,
         RevocationRegistryDefinition? revRegDef
     )
     {
-        if (credential == null || metadata == null || linkSecret == null || credDef == null)
-            throw new ArgumentNullException("Input parameters cannot be null");
-        if (credential.Handle == UIntPtr.Zero)
-            throw new ObjectDisposedException(nameof(Credential));
+        var revRegDefHandle = revRegDef?.Handle ?? 0;
         var code = NativeMethods.anoncreds_process_credential(
-            credential.Handle,
-            metadata.Handle,
-            linkSecret.Value,
+            Handle,
+            credReqMetadata.Handle,
+            linkSecret.Handle,
             credDef.Handle,
-            revRegDef?.Handle ?? UIntPtr.Zero,
-            out var processed
+            revRegDefHandle,
+            out var newCredHandle
         );
         if (code != ErrorCode.Success)
+        {
             throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
-        return new Credential(processed);
+        }
+        return new Credential(newCredHandle);
     }
 
     internal static Credential FromJson(string json) => FromJson<Credential>(json);

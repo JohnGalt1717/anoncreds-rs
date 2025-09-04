@@ -6,7 +6,7 @@ namespace AnonCredsNet.Objects;
 
 public class CredentialOffer : AnonCredsObject
 {
-    private CredentialOffer(UIntPtr handle)
+    private CredentialOffer(long handle)
         : base(handle) { }
 
     public static CredentialOffer Create(

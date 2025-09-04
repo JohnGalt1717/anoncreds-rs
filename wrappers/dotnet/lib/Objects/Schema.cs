@@ -6,7 +6,7 @@ namespace AnonCredsNet.Objects;
 
 public class Schema : AnonCredsObject
 {
-    private Schema(UIntPtr handle)
+    private Schema(long handle)
         : base(handle) { }
 
     public static Schema Create(string issuerId, string name, string version, string attrNamesJson)

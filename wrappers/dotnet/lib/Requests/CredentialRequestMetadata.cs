@@ -4,7 +4,7 @@ namespace AnonCredsNet.Requests;
 
 public class CredentialRequestMetadata : AnonCredsObject
 {
-    internal CredentialRequestMetadata(UIntPtr handle)
+    internal CredentialRequestMetadata(long handle)
         : base(handle) { }
 
     internal static CredentialRequestMetadata FromJson(string json) =>

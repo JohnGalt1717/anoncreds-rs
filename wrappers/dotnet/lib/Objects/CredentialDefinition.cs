@@ -6,7 +6,7 @@ namespace AnonCredsNet.Objects;
 
 public class CredentialDefinition : AnonCredsObject
 {
-    private CredentialDefinition(UIntPtr handle)
+    private CredentialDefinition(long handle)
         : base(handle) { }
 
     public static (
@@ -65,7 +65,7 @@ public class CredentialDefinition : AnonCredsObject
 
 public class CredentialDefinitionPrivate : AnonCredsObject
 {
-    internal CredentialDefinitionPrivate(UIntPtr handle)
+    internal CredentialDefinitionPrivate(long handle)
         : base(handle) { }
 
     internal static CredentialDefinitionPrivate FromJson(string json) =>

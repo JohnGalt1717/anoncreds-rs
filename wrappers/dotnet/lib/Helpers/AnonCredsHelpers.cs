@@ -239,6 +239,94 @@ internal static class AnonCredsHelpers
         }
     }
 
+    internal static FfiNonrevokedIntervalOverrideList BuildNonrevokedIntervalOverrideList(
+        string? nonRevocJson
+    )
+    {
+        if (string.IsNullOrWhiteSpace(nonRevocJson))
+            return new FfiNonrevokedIntervalOverrideList { Count = 0, Data = IntPtr.Zero };
+
+        // Expected shapes (flexible):
+        // 1) { "revRegId": { "10": 8, "20": 18 } }
+        // 2) [{ "revRegId": "id", "requested_from_ts": 10, "override_ts": 8 }, ...]
+        var overrides = new List<FfiNonrevokedIntervalOverride>();
+
+        using var doc = JsonDocument.Parse(nonRevocJson);
+        var root = doc.RootElement;
+        if (root.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var revMap in root.EnumerateObject())
+            {
+                var revRegId = revMap.Name;
+                if (revMap.Value.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var tsMap in revMap.Value.EnumerateObject())
+                    {
+                        if (!int.TryParse(tsMap.Name, out var fromTs))
+                            continue;
+                        var overrideTs = tsMap.Value.GetInt32();
+                        var idPtr = Marshal.StringToHGlobalAnsi(revRegId);
+                        overrides.Add(
+                            new FfiNonrevokedIntervalOverride
+                            {
+                                RevRegDefId = idPtr,
+                                RequestedFromTs = fromTs,
+                                OverrideRevStatusListTs = overrideTs,
+                            }
+                        );
+                    }
+                }
+            }
+        }
+        else if (root.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var el in root.EnumerateArray())
+            {
+                var revRegId = el.GetProperty("revRegId").GetString() ?? string.Empty;
+                var fromTs = el.GetProperty("requested_from_ts").GetInt32();
+                var overrideTs = el.GetProperty("override_ts").GetInt32();
+                var idPtr = Marshal.StringToHGlobalAnsi(revRegId);
+                overrides.Add(
+                    new FfiNonrevokedIntervalOverride
+                    {
+                        RevRegDefId = idPtr,
+                        RequestedFromTs = fromTs,
+                        OverrideRevStatusListTs = overrideTs,
+                    }
+                );
+            }
+        }
+
+        if (overrides.Count == 0)
+            return new FfiNonrevokedIntervalOverrideList { Count = 0, Data = IntPtr.Zero };
+
+        var size = Marshal.SizeOf<FfiNonrevokedIntervalOverride>();
+        var ptr = Marshal.AllocHGlobal(size * overrides.Count);
+        for (int i = 0; i < overrides.Count; i++)
+        {
+            Marshal.StructureToPtr(overrides[i], ptr + (i * size), false);
+        }
+        return new FfiNonrevokedIntervalOverrideList { Count = (nuint)overrides.Count, Data = ptr };
+    }
+
+    internal static void FreeFfiNonrevokedIntervalOverrideList(
+        FfiNonrevokedIntervalOverrideList list
+    )
+    {
+        if (list.Data == IntPtr.Zero || list.Count == 0)
+            return;
+        var size = Marshal.SizeOf<FfiNonrevokedIntervalOverride>();
+        var count = (int)list.Count.ToUInt32();
+        for (int i = 0; i < count; i++)
+        {
+            var ptr = list.Data + (i * size);
+            var item = Marshal.PtrToStructure<FfiNonrevokedIntervalOverride>(ptr);
+            if (item.RevRegDefId != IntPtr.Zero)
+                Marshal.FreeHGlobal(item.RevRegDefId);
+        }
+        Marshal.FreeHGlobal(list.Data);
+    }
+
     internal static void FreeFfiCredentialProveList(FfiCredentialProveList list)
     {
         if (list.Data != IntPtr.Zero)
@@ -340,8 +428,8 @@ internal static class AnonCredsHelpers
         Console.WriteLine($"CredDefs JSON: {credDefsJson}");
         Console.WriteLine($"CredDef IDs JSON: {credDefIdsJson}");
 
-        // Empty non-revocation override list for now
-        var nonRevocList = new FfiNonrevokedIntervalOverrideList { Count = 0, Data = IntPtr.Zero };
+        // Build non-revocation override list if provided
+        var nonRevocList = BuildNonrevokedIntervalOverrideList(nonRevocJson);
 
         Console.WriteLine("Calling native verify function...");
         try
@@ -462,7 +550,26 @@ internal static class AnonCredsHelpers
             );
             Console.WriteLine($"Native call returned with code: {code}");
             if (code != ErrorCode.Success)
-                throw new AnonCredsException(code, GetCurrentError());
+            {
+                // Align with Python: certain verification-time failures should return false, not throw
+                var err = GetCurrentError();
+                Console.WriteLine($"Verification returned error: {err}");
+                // Treat timestamp/resolution and proof rejection as a non-valid proof
+                if (!string.IsNullOrEmpty(err))
+                {
+                    var e = err.ToLowerInvariant();
+                    if (
+                        e.Contains("invalid timestamp")
+                        || e.Contains("proof rejected")
+                        || e.Contains("credential revoked")
+                    )
+                    {
+                        Console.WriteLine("Interpreting verification error as invalid=false");
+                        return false;
+                    }
+                }
+                throw new AnonCredsException(code, err);
+            }
             Console.WriteLine(
                 $"Verification result sbyte value: {valid} (converted to bool: {valid != 0})"
             );
@@ -494,6 +601,8 @@ internal static class AnonCredsHelpers
             FreeFfiStrList(credDefIds);
             if (revRegDefIds.Data != IntPtr.Zero)
                 FreeFfiStrList(revRegDefIds);
+            // Free non-revocation overrides if allocated
+            FreeFfiNonrevokedIntervalOverrideList(nonRevocList);
             Console.WriteLine("Cleanup completed");
         }
     }

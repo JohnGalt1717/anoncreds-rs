@@ -80,6 +80,12 @@ internal static partial class NativeMethods
     );
 
     [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_w3c_presentation_from_json(
+        ByteBuffer json,
+        out long handle
+    );
+
+    [LibraryImport(Library)]
     internal static partial ErrorCode anoncreds_presentation_request_from_json(
         ByteBuffer json,
         out long handle
@@ -111,6 +117,12 @@ internal static partial class NativeMethods
 
     [LibraryImport(Library)]
     internal static partial ErrorCode anoncreds_revocation_state_from_json(
+        ByteBuffer json,
+        out long handle
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_w3c_credential_from_json(
         ByteBuffer json,
         out long handle
     );
@@ -198,8 +210,37 @@ internal static partial class NativeMethods
         out long presentation
     );
 
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial ErrorCode anoncreds_create_w3c_presentation(
+        long presReq,
+        FfiCredentialEntryList credentials,
+        FfiCredentialProveList credentialsProve,
+        string linkSecret,
+        FfiObjectHandleList schemas,
+        FfiStrList schemaIds,
+        FfiObjectHandleList credDefs,
+        FfiStrList credDefIds,
+        string w3cVersion,
+        out long presentation
+    );
+
     [LibraryImport(Library)]
     internal static partial ErrorCode anoncreds_verify_presentation(
+        long presentation,
+        long presReq,
+        FfiObjectHandleList schemas,
+        FfiStrList schemaIds,
+        FfiObjectHandleList credDefs,
+        FfiStrList credDefIds,
+        FfiObjectHandleList revRegDefs,
+        FfiStrList revRegDefIds,
+        FfiObjectHandleList revStatusLists,
+        FfiNonrevokedIntervalOverrideList nonrevokedIntervalOverride,
+        out sbyte isValid
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_verify_w3c_presentation(
         long presentation,
         long presReq,
         FfiObjectHandleList schemas,
@@ -264,6 +305,63 @@ internal static partial class NativeMethods
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial ErrorCode anoncreds_revocation_registry_definition_get_attribute(
         long handle,
+        string name,
+        out IntPtr value
+    );
+
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial ErrorCode anoncreds_create_w3c_credential(
+        long credDef,
+        long credDefPvt,
+        long credOffer,
+        long credRequest,
+        FfiStrList attrNames,
+        FfiStrList attrRawValues,
+        IntPtr revocation,
+        string w3cVersion,
+        out long credential
+    );
+
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial ErrorCode anoncreds_process_w3c_credential(
+        long credential,
+        long requestMetadata,
+        string linkSecret,
+        long credDef,
+        long revRegDef,
+        out long processedCredential
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_credential_from_w3c(
+        long w3cCredential,
+        out long legacyCredential
+    );
+
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial ErrorCode anoncreds_credential_to_w3c(
+        long legacyCredential,
+        string issuerId,
+        string w3cVersion,
+        out long w3cCredential
+    );
+
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial ErrorCode anoncreds_credential_get_attribute(
+        long handle,
+        string name,
+        out IntPtr value
+    );
+
+    [LibraryImport(Library)]
+    internal static partial ErrorCode anoncreds_w3c_credential_get_integrity_proof_details(
+        long handle,
+        out long proofInfoHandle
+    );
+
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial ErrorCode anoncreds_w3c_credential_proof_get_attribute(
+        long proofInfoHandle,
         string name,
         out IntPtr value
     );

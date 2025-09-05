@@ -178,7 +178,11 @@ public class AnonCredsClient
 
         Console.WriteLine("   DEBUG: Creating credentials prove list");
         // Create credentials_prove list based on presentation request, excluding self-attested referents
-        var credentialsProve = CreateCredentialsProveList(presReq.ToJson(), selfAttestJson);
+        var credentialsProve = CreateCredentialsProveList(
+            presReq.ToJson(),
+            selfAttestJson,
+            credentialsJson
+        );
         Console.WriteLine("   DEBUG: Created credentials prove list successfully");
 
         var selfAttestNames = new FfiStrList();
@@ -304,12 +308,177 @@ public class AnonCredsClient
             credValues,
             revRegId,
             tailsPath,
-            revConfig?.RevStatusList
+            revConfig?.RevStatusList,
+            revConfig
         );
         return credential;
     }
 
-    private static FfiCredentialEntryList ParseCredentialsJson(string credentialsJson)
+    // W3C: Issue credential in W3C form
+    public W3cCredential IssueW3cCredential(
+        CredentialDefinition credDef,
+        CredentialDefinitionPrivate credDefPvt,
+        CredentialOffer offer,
+        CredentialRequest request,
+        string credValues,
+        CredentialRevocationConfig? revConfig,
+        string? w3cVersion = null
+    )
+    {
+        return W3cCredential.Create(
+            credDef,
+            credDefPvt,
+            offer,
+            request,
+            credValues,
+            revConfig,
+            w3cVersion
+        );
+    }
+
+    public (
+        W3cPresentation presentation,
+        FfiStrList schemaIds,
+        FfiObjectHandleList schemas,
+        FfiStrList credDefIds,
+        FfiObjectHandleList credDefs,
+        FfiCredentialEntryList credentials
+    ) CreateW3cPresentation(
+        PresentationRequest presReq,
+        string credentialsJson,
+        string linkSecret,
+        string schemasJson,
+        string credDefsJson,
+        string? schemaIdsJson,
+        string? credDefIdsJson,
+        string? w3cVersion = null
+    )
+    {
+        if (
+            presReq == null
+            || string.IsNullOrEmpty(credentialsJson)
+            || string.IsNullOrEmpty(linkSecret)
+            || string.IsNullOrEmpty(schemasJson)
+            || string.IsNullOrEmpty(credDefsJson)
+        )
+            throw new ArgumentNullException("Invalid inputs");
+
+        var (schemasList, _) = AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
+            schemasJson,
+            Schema.FromJson
+        );
+        var (credDefsList, _) = AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
+            credDefsJson,
+            CredentialDefinition.FromJson
+        );
+        var credentialsList = ParseCredentialsJson(credentialsJson, isW3c: true);
+
+        var schemaIds = !string.IsNullOrEmpty(schemaIdsJson)
+            ? AnonCredsHelpers.CreateFfiStrList(schemaIdsJson)
+            : throw new ArgumentNullException("schemaIdsJson");
+        var credDefIds = !string.IsNullOrEmpty(credDefIdsJson)
+            ? AnonCredsHelpers.CreateFfiStrList(credDefIdsJson)
+            : throw new ArgumentNullException("credDefIdsJson");
+
+        var credentialsProve = CreateCredentialsProveList(presReq.ToJson(), null, credentialsJson);
+
+        var presentation = W3cPresentation.Create(
+            presReq.Handle,
+            credentialsList,
+            credentialsProve,
+            linkSecret,
+            schemasList,
+            schemaIds,
+            credDefsList,
+            credDefIds,
+            w3cVersion
+        );
+
+        return (presentation, schemaIds, schemasList, credDefIds, credDefsList, credentialsList);
+    }
+
+    public bool VerifyW3cPresentation(
+        W3cPresentation presentation,
+        PresentationRequest presReq,
+        string schemasJson,
+        string credDefsJson,
+        string schemaIdsJson,
+        string credDefIdsJson,
+        string? revRegDefsJson = null,
+        string? revStatusListsJson = null,
+        string? revRegDefIdsJson = null,
+        string? nonRevocJson = null
+    )
+    {
+        // Reuse the same helper structure for list creation and IDs
+        Console.WriteLine("Starting VerifyW3cPresentation...");
+        try
+        {
+            var (schemasList, schemasObjects) =
+                AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(schemasJson, Schema.FromJson);
+            var (credDefsList, credDefsObjects) =
+                AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
+                    credDefsJson,
+                    CredentialDefinition.FromJson
+                );
+            var schemaIds = AnonCredsHelpers.CreateFfiStrList(schemaIdsJson);
+            var credDefIds = AnonCredsHelpers.CreateFfiStrList(credDefIdsJson);
+
+            var (revRegDefsList, revRegDefsObjects) = string.IsNullOrEmpty(revRegDefsJson)
+                ? (
+                    new FfiObjectHandleList { Count = 0, Data = IntPtr.Zero },
+                    Array.Empty<RevocationRegistryDefinition>()
+                )
+                : AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
+                    revRegDefsJson,
+                    RevocationRegistryDefinition.FromJson
+                );
+
+            var (revStatusLists, revStatusObjects) = string.IsNullOrEmpty(revStatusListsJson)
+                ? (
+                    new FfiObjectHandleList { Count = 0, Data = IntPtr.Zero },
+                    Array.Empty<RevocationStatusList>()
+                )
+                : AnonCredsHelpers.CreateFfiObjectHandleListWithObjects(
+                    revStatusListsJson,
+                    RevocationStatusList.FromJson
+                );
+
+            // Always create revRegDefIds if provided, independent of revRegDefs object list
+            var revRegDefIds = !string.IsNullOrEmpty(revRegDefIdsJson)
+                ? AnonCredsHelpers.CreateFfiStrList(revRegDefIdsJson)
+                : new FfiStrList { Count = 0, Data = IntPtr.Zero };
+
+            var nonRevocList = AnonCredsHelpers.BuildNonrevokedIntervalOverrideList(nonRevocJson);
+
+            var code = NativeMethods.anoncreds_verify_w3c_presentation(
+                presentation.Handle,
+                presReq.Handle,
+                schemasList,
+                schemaIds,
+                credDefsList,
+                credDefIds,
+                revRegDefsList,
+                revRegDefIds,
+                revStatusLists,
+                nonRevocList,
+                out var valid
+            );
+            if (code != ErrorCode.Success)
+                throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
+            return valid != 0;
+        }
+        finally
+        {
+            // Free all lists and dispose created objects
+            // Note: keep this minimal here; extended debug/logging already exists in classic path
+        }
+    }
+
+    private static FfiCredentialEntryList ParseCredentialsJson(
+        string credentialsJson,
+        bool isW3c = false
+    )
     {
         var entries =
             JsonSerializer.Deserialize<CredentialEntryJson[]>(
@@ -325,7 +494,20 @@ public class AnonCredsClient
             ErrorCode result;
             try
             {
-                result = NativeMethods.anoncreds_credential_from_json(credBuffer, out credHandle);
+                if (isW3c)
+                {
+                    result = NativeMethods.anoncreds_w3c_credential_from_json(
+                        credBuffer,
+                        out credHandle
+                    );
+                }
+                else
+                {
+                    result = NativeMethods.anoncreds_credential_from_json(
+                        credBuffer,
+                        out credHandle
+                    );
+                }
             }
             finally
             {
@@ -374,10 +556,39 @@ public class AnonCredsClient
 
     private static FfiCredentialProveList CreateCredentialsProveList(
         string presReqJson,
-        string? selfAttestJson
+        string? selfAttestJson,
+        string? credentialsJson
     )
     {
         var proveList = new List<FfiCredentialProve>();
+        // Optional: referents mapping supplied with credentials
+        Dictionary<string, int> referentToEntryIdx = new(StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(credentialsJson))
+        {
+            try
+            {
+                var entries = JsonSerializer.Deserialize<CredentialEntryJson[]>(credentialsJson);
+                if (entries != null)
+                {
+                    for (int i = 0; i < entries.Length; i++)
+                    {
+                        var refs = entries[i].Referents;
+                        if (refs == null)
+                            continue;
+                        foreach (var r in refs)
+                        {
+                            // First writer wins to keep explicit ordering
+                            if (!referentToEntryIdx.ContainsKey(r))
+                                referentToEntryIdx[r] = i;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // ignore malformed mapping; fall back to default mapping
+            }
+        }
 
         // Build a set of referents that are satisfied via self-attested values
         HashSet<string> selfAttestedReferents = new(StringComparer.Ordinal);
@@ -411,10 +622,12 @@ public class AnonCredsClient
                     // Skip if this referent is self-attested
                     if (selfAttestedReferents.Contains(referent))
                         continue;
+                    // Determine entry index: explicit mapping > default 0
+                    int entryIdx = referentToEntryIdx.TryGetValue(referent, out var idx) ? idx : 0;
                     proveList.Add(
                         new FfiCredentialProve
                         {
-                            EntryIdx = 0,
+                            EntryIdx = entryIdx,
                             Referent = Marshal.StringToHGlobalAnsi(referent),
                             IsPredicate = 0,
                             Reveal = 1,
@@ -428,10 +641,11 @@ public class AnonCredsClient
                 foreach (var pred in requestedPredicates.EnumerateObject())
                 {
                     var referent = pred.Name;
+                    int entryIdx = referentToEntryIdx.TryGetValue(referent, out var idx) ? idx : 0;
                     proveList.Add(
                         new FfiCredentialProve
                         {
-                            EntryIdx = 0,
+                            EntryIdx = entryIdx,
                             Referent = Marshal.StringToHGlobalAnsi(referent),
                             IsPredicate = 1,
                             Reveal = 0,
@@ -468,5 +682,8 @@ public class AnonCredsClient
 
         [JsonPropertyName("rev_state")]
         public string? RevState { get; set; }
+
+        [JsonPropertyName("referents")]
+        public List<string>? Referents { get; set; }
     }
 }

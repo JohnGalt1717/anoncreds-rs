@@ -6,54 +6,34 @@ using AnonCredsNet.Requests;
 
 namespace AnonCredsNet.Models;
 
-public sealed class Credential : AnonCredsObject
+public sealed class W3cCredential : AnonCredsObject
 {
-    private Credential(long handle)
+    private W3cCredential(long handle)
         : base(handle) { }
 
-    internal static Credential FromHandle(long handle) => new Credential(handle);
-
-    /// <summary>
-    /// Creates a credential and its revocation delta. Both returned objects must be disposed using <c>using</c> statements.
-    /// </summary>
-    internal static (Credential Credential, RevocationStatusListDelta? Delta) Create(
+    internal static W3cCredential Create(
         CredentialDefinition credDef,
         CredentialDefinitionPrivate credDefPvt,
         CredentialOffer offer,
         CredentialRequest request,
         string credValues,
-        string? revRegId,
-        string? tailsPath,
-        RevocationStatusList? revStatusList,
-        CredentialRevocationConfig? revConfig = null
+        CredentialRevocationConfig? revConfig,
+        string? w3cVersion
     )
     {
-        if (
-            credDef == null
-            || credDefPvt == null
-            || offer == null
-            || request == null
-            || string.IsNullOrEmpty(credValues)
-        )
-            throw new ArgumentNullException("Input parameters cannot be null or empty");
+        if (string.IsNullOrEmpty(credValues))
+            throw new ArgumentNullException(nameof(credValues));
 
-        // Parse credential values JSON
-        var credValuesDict = System.Text.Json.JsonSerializer.Deserialize<
-            Dictionary<string, string>
-        >(credValues);
-        if (credValuesDict == null)
-            throw new ArgumentException("Invalid credential values JSON");
-
+        var dict =
+            System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(credValues)
+            ?? throw new ArgumentException("Invalid credential values JSON");
         var attrNames = AnonCredsHelpers.CreateFfiStrList(
-            System.Text.Json.JsonSerializer.Serialize(credValuesDict.Keys)
+            System.Text.Json.JsonSerializer.Serialize(dict.Keys)
         );
         var attrRawValues = AnonCredsHelpers.CreateFfiStrList(
-            System.Text.Json.JsonSerializer.Serialize(credValuesDict.Values)
+            System.Text.Json.JsonSerializer.Serialize(dict.Values)
         );
-        // When encoded values are not provided, pass an empty list (count=0, data=NULL)
-        var attrEncValues = new FfiStrList { Count = 0, Data = IntPtr.Zero };
 
-        // Build optional revocation info struct
         IntPtr revocationPtr = IntPtr.Zero;
         try
         {
@@ -74,69 +54,75 @@ public sealed class Credential : AnonCredsObject
                 revocationPtr = Marshal.AllocHGlobal(Marshal.SizeOf<FfiCredRevInfo>());
                 Marshal.StructureToPtr(revInfo, revocationPtr, false);
             }
-        }
-        catch
-        {
-            if (revocationPtr != IntPtr.Zero)
-            {
-                Marshal.FreeHGlobal(revocationPtr);
-                revocationPtr = IntPtr.Zero;
-            }
-            throw;
-        }
 
-        try
-        {
-            var code = NativeMethods.anoncreds_create_credential(
+            var code = NativeMethods.anoncreds_create_w3c_credential(
                 credDef.Handle,
                 credDefPvt.Handle,
                 offer.Handle,
                 request.Handle,
                 attrNames,
                 attrRawValues,
-                attrEncValues,
                 revocationPtr,
+                w3cVersion ?? "1.1",
                 out var cred
             );
             if (code != ErrorCode.Success)
                 throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
-            return (new Credential(cred), null); // No delta when not using revocation
+            return new W3cCredential(cred);
         }
         finally
         {
             AnonCredsHelpers.FreeFfiStrList(attrNames);
             AnonCredsHelpers.FreeFfiStrList(attrRawValues);
             if (revocationPtr != IntPtr.Zero)
-            {
                 Marshal.FreeHGlobal(revocationPtr);
-            }
         }
     }
 
-    public Credential Process(
+    public W3cCredential Process(
         CredentialRequestMetadata credReqMetadata,
         string linkSecret,
         CredentialDefinition credDef,
         RevocationRegistryDefinition? revRegDef
     )
     {
-        if (string.IsNullOrEmpty(linkSecret))
-            throw new ArgumentNullException(nameof(linkSecret));
-        var revRegDefHandle = revRegDef?.Handle ?? 0;
-        var code = NativeMethods.anoncreds_process_credential(
+        var code = NativeMethods.anoncreds_process_w3c_credential(
             Handle,
             credReqMetadata.Handle,
             linkSecret,
             credDef.Handle,
-            revRegDefHandle,
-            out var newCredHandle
+            revRegDef?.Handle ?? 0,
+            out var handle
         );
         if (code != ErrorCode.Success)
-        {
             throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
-        }
-        return new Credential(newCredHandle);
+        return new W3cCredential(handle);
     }
 
-    internal static Credential FromJson(string json) => FromJson<Credential>(json);
+    public static W3cCredential FromJson(string json) => FromJson<W3cCredential>(json);
+
+    public Credential ToLegacy()
+    {
+        var code = NativeMethods.anoncreds_credential_from_w3c(Handle, out var legacy);
+        if (code != ErrorCode.Success)
+            throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
+        return Credential.FromHandle(legacy);
+    }
+
+    public static W3cCredential FromLegacy(
+        Credential legacy,
+        string issuerId,
+        string? w3cVersion = null
+    )
+    {
+        var code = NativeMethods.anoncreds_credential_to_w3c(
+            legacy.Handle,
+            issuerId,
+            w3cVersion ?? "1.1",
+            out var w3c
+        );
+        if (code != ErrorCode.Success)
+            throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
+        return new W3cCredential(w3c);
+    }
 }

@@ -465,7 +465,28 @@ public class AnonCredsClient
                 out var valid
             );
             if (code != ErrorCode.Success)
-                throw new AnonCredsException(code, AnonCredsHelpers.GetCurrentError());
+            {
+                // Align with Python semantics: treat common verify-time issues as invalid=false
+                var err = AnonCredsHelpers.GetCurrentError();
+                if (
+                    !string.IsNullOrEmpty(err)
+                    && (
+                        err.Contains("Invalid timestamp", StringComparison.OrdinalIgnoreCase)
+                        || err.Contains("proof rejected", StringComparison.OrdinalIgnoreCase)
+                        || err.Contains("credential revoked", StringComparison.OrdinalIgnoreCase)
+                        || err.Contains(
+                            "Revocation Registry not provided",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                )
+                {
+                    Console.WriteLine($"Verification returned error: {err}");
+                    Console.WriteLine("Interpreting verification error as invalid=false");
+                    return false;
+                }
+                throw new AnonCredsException(code, err);
+            }
             return valid != 0;
         }
         finally

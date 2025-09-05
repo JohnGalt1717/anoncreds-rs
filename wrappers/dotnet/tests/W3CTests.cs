@@ -8,8 +8,6 @@ namespace AnonCredsNet.Tests;
 
 public class W3cTests
 {
-    private readonly AnonCredsClient _client = new();
-
     [Fact]
     public void W3cEndToEnd()
     {
@@ -85,7 +83,7 @@ public class W3cTests
             RevRegIndex = revIdx,
         };
 
-        var w3cCred = _client.IssueW3cCredential(
+        var w3cCred = W3cCredential.Create(
             credDef,
             credDefPriv,
             credOffer,
@@ -112,7 +110,7 @@ public class W3cTests
             timeAfterCreatingCred
         );
 
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqObj = new
         {
             nonce,
@@ -170,25 +168,23 @@ public class W3cTests
             new Dictionary<string, string> { [credDefId] = credDef.ToJson() }
         );
 
-        var (presentation, schemaIds, schemasList, credDefIds, credDefsList, credentialsList) =
-            _client.CreateW3cPresentation(
-                presReq,
-                credentialsJson,
-                linkSecret,
-                schemasJson,
-                credDefsJson,
-                JsonSerializer.Serialize(new[] { schemaId }),
-                JsonSerializer.Serialize(new[] { credDefId }),
-                null
-            );
+        var presentation = W3cPresentation.CreateFromJson(
+            presReq,
+            credentialsJson,
+            linkSecret,
+            schemasJson,
+            credDefsJson,
+            JsonSerializer.Serialize(new[] { schemaId }),
+            JsonSerializer.Serialize(new[] { credDefId }),
+            null
+        );
 
         var revRegDefsJson = JsonSerializer.Serialize(
             new Dictionary<string, string> { [revRegId] = revRegDef.ToJson() }
         );
         var revRegDefIdsJson = JsonSerializer.Serialize(new[] { revRegId });
 
-        var isValid = _client.VerifyW3cPresentation(
-            presentation,
+        var isValid = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
@@ -213,8 +209,7 @@ public class W3cTests
             timeRevoke
         );
 
-        var isValidAfterRevoke = _client.VerifyW3cPresentation(
-            presentation,
+        var isValidAfterRevoke = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
@@ -267,18 +262,10 @@ public class W3cTests
             new Dictionary<string, string> { ["name"] = "Alex", ["age"] = "28" }
         );
 
-        var w3cCred = _client.IssueW3cCredential(
-            credDef,
-            credDefPriv,
-            offer,
-            req,
-            values,
-            null,
-            null
-        );
+        var w3cCred = W3cCredential.Create(credDef, credDefPriv, offer, req, values, null, null);
         var processed = w3cCred.Process(reqMeta, linkSecret, credDef, null);
 
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqObj = new
         {
             nonce,
@@ -310,20 +297,18 @@ public class W3cTests
             new Dictionary<string, string> { [credDefId] = credDef.ToJson() }
         );
 
-        var (presentation, schemaIds, schemasList, credDefIds, credDefsList, credentialsList) =
-            _client.CreateW3cPresentation(
-                presReq,
-                credentialsJson,
-                linkSecret,
-                schemasJson,
-                credDefsJson,
-                JsonSerializer.Serialize(new[] { schemaId }),
-                JsonSerializer.Serialize(new[] { credDefId }),
-                null
-            );
+        var presentation = W3cPresentation.CreateFromJson(
+            presReq,
+            credentialsJson,
+            linkSecret,
+            schemasJson,
+            credDefsJson,
+            JsonSerializer.Serialize(new[] { schemaId }),
+            JsonSerializer.Serialize(new[] { credDefId }),
+            null
+        );
 
-        var isValid = _client.VerifyW3cPresentation(
-            presentation,
+        var isValid = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
@@ -404,7 +389,7 @@ public class W3cTests
             RevRegIndex = revIdx,
         };
 
-        var w3cCred = _client.IssueW3cCredential(
+        var w3cCred = W3cCredential.Create(
             credDef,
             credDefPriv,
             offer,
@@ -446,7 +431,7 @@ public class W3cTests
             new Dictionary<string, string> { [credDefId] = credDef.ToJson() }
         );
 
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqObj = new
         {
             nonce,
@@ -464,7 +449,7 @@ public class W3cTests
         };
         var presReq = PresentationRequest.FromJson(JsonSerializer.Serialize(presReqObj));
 
-        var (presentation, _, _, _, _, _) = _client.CreateW3cPresentation(
+        var presentation = W3cPresentation.CreateFromJson(
             presReq,
             credentialsJson,
             linkSecret,
@@ -482,8 +467,7 @@ public class W3cTests
             }
         );
 
-        var isValid = _client.VerifyW3cPresentation(
-            presentation,
+        var isValid = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,

@@ -69,8 +69,17 @@ public class PredicatesOnlyTests
             RevStatusList = revList,
             RevRegIndex = 1u,
         };
-        var client = new AnonCredsClient();
-        var cred = client.IssueCredential(cd, cdPriv, offer, req, values, null, revCfg, null);
+        var (cred, _) = Credential.Create(
+            cd,
+            cdPriv,
+            offer,
+            req,
+            values,
+            null,
+            null,
+            revList,
+            revCfg
+        );
         var proc = cred.Process(meta, ls, cd, revDef);
 
         // timestamp > t0 and inside global window
@@ -78,7 +87,7 @@ public class PredicatesOnlyTests
         var revListIssued = revList.Update(cd, revDef, revPriv, new[] { 1ul }, null, tIssue);
         var revState = RevocationState.Create(revDef, revListIssued, 1u, revDef.TailsLocation);
 
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqJson = JsonSerializer.Serialize(
             new
             {
@@ -123,7 +132,7 @@ public class PredicatesOnlyTests
             new Dictionary<string, string> { { RevRegId, revListIssued.ToJson() } }
         );
 
-        var (presentation, _, _, _, _, _, _, _, _, _) = client.CreatePresentation(
+        var presentation = Presentation.CreateFromJson(
             presReq,
             credsArray,
             JsonSerializer.Serialize(new Dictionary<string, string>()),
@@ -136,8 +145,7 @@ public class PredicatesOnlyTests
             revListsJson
         );
 
-        var ok = client.VerifyPresentation(
-            presentation,
+        var ok = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
@@ -208,8 +216,17 @@ public class PredicatesOnlyTests
             RevStatusList = revList,
             RevRegIndex = 9u,
         };
-        var client = new AnonCredsClient();
-        var cred = client.IssueCredential(cd, cdPriv, offer, req, values, null, revCfg, null);
+        var (cred, _) = Credential.Create(
+            cd,
+            cdPriv,
+            offer,
+            req,
+            values,
+            null,
+            null,
+            revList,
+            revCfg
+        );
         var proc = cred.Process(meta, ls, cd, revDef);
 
         // Issue at t=9, local window will require from=10 later
@@ -217,7 +234,7 @@ public class PredicatesOnlyTests
         var revListIssued = revList.Update(cd, revDef, revPriv, new[] { 9ul }, null, tIssue);
         var revState = RevocationState.Create(revDef, revListIssued, 9u, revDef.TailsLocation);
 
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqJson = JsonSerializer.Serialize(
             new
             {
@@ -263,7 +280,7 @@ public class PredicatesOnlyTests
             new Dictionary<string, string> { { RevRegId, revListIssued.ToJson() } }
         );
 
-        var (presentation, _, _, _, _, _, _, _, _, _) = client.CreatePresentation(
+        var presentation = Presentation.CreateFromJson(
             presReq,
             credsArray,
             JsonSerializer.Serialize(new Dictionary<string, string>()),
@@ -276,8 +293,7 @@ public class PredicatesOnlyTests
             revListsJson
         );
 
-        var okNoOverride = client.VerifyPresentation(
-            presentation,
+        var okNoOverride = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
@@ -299,8 +315,7 @@ public class PredicatesOnlyTests
                 },
             }
         );
-        var okWithOverride = client.VerifyPresentation(
-            presentation,
+        var okWithOverride = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,

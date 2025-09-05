@@ -7,7 +7,7 @@ namespace AnonCredsNet.Tests;
 
 public class AnonCredsNetTests
 {
-    private readonly AnonCredsClient _client = new();
+    // Removed client facade; using model-centric APIs
 
     [Fact]
     public void TestFullFlow()
@@ -98,15 +98,16 @@ public class AnonCredsNetTests
             RevRegIndex = revIdx,
         };
 
-        var credential = _client.IssueCredential(
+        var (credential, _) = Credential.Create(
             credDef,
             credDefPrivate,
             credOffer,
             credRequest,
             credValues,
             null,
-            revConfig,
-            null
+            null,
+            revocationStatusList,
+            revConfig
         );
 
         // 10. Process Credential
@@ -129,7 +130,7 @@ public class AnonCredsNetTests
         );
 
         // 12. Create Presentation Request
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqJson = $$"""
             {
               "nonce": "{{nonce}}",
@@ -187,20 +188,21 @@ public class AnonCredsNetTests
             new Dictionary<string, string> { [revRegId] = issuedRevStatusList.ToJson() }
         );
 
-        var presentation = _client.CreatePresentation(
+        var presentation = Presentation.CreateFromJson(
             presReq,
             credentialsJson,
             selfAttestedJson,
             linkSecret,
             schemasJson,
             credDefsJson,
+            JsonSerializer.Serialize(new[] { schemaId }),
+            JsonSerializer.Serialize(new[] { credDefId }),
             revRegsJson,
             revListsJson
         );
 
         // 15. Verify Presentation
-        var isValid = _client.VerifyPresentation(
-            presentation,
+        var isValid = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,

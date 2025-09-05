@@ -83,16 +83,16 @@ public class ClassicRevocationFailureTests
             RevRegIndex = revIdx,
         };
 
-        var client = new AnonCredsClient();
-        var credential = client.IssueCredential(
+        var (credential, _) = Credential.Create(
             credDef,
             credDefPriv,
             credOffer,
             credReq,
             credValues,
             null,
-            revConfig,
-            null
+            null,
+            revocationStatusList,
+            revConfig
         );
 
         var processed = credential.Process(credReqMeta, linkSecret, credDef, revRegDef);
@@ -107,7 +107,7 @@ public class ClassicRevocationFailureTests
             timeAfterCreatingCred
         );
 
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqJson = $$"""
             {
                 "nonce": "{{nonce}}",
@@ -164,19 +164,20 @@ public class ClassicRevocationFailureTests
             new Dictionary<string, string> { [revRegId] = issuedRevStatusList.ToJson() }
         );
 
-        var presentation = client.CreatePresentation(
+        var presentation = Presentation.CreateFromJson(
             presReq,
             credentialsJson,
             selfAttestedJson,
             linkSecret,
             schemasJson,
             credDefsJson,
+            JsonSerializer.Serialize(new[] { schemaId }),
+            JsonSerializer.Serialize(new[] { credDefId }),
             revRegsJson,
             revListsJson
         );
 
-        var isValid = client.VerifyPresentation(
-            presentation,
+        var isValid = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
@@ -225,19 +226,20 @@ public class ClassicRevocationFailureTests
             }
         );
 
-        var presentation2 = client.CreatePresentation(
+        var presentation2 = Presentation.CreateFromJson(
             presReq,
             credentialsJson2,
             selfAttestedJson,
             linkSecret,
             schemasJson,
             credDefsJson,
+            JsonSerializer.Serialize(new[] { schemaId }),
+            JsonSerializer.Serialize(new[] { credDefId }),
             revRegsJson,
             revListsJson2
         );
 
-        var isValidAfterRevoke = client.VerifyPresentation(
-            presentation2,
+        var isValidAfterRevoke = presentation2.Verify(
             presReq,
             schemasJson,
             credDefsJson,

@@ -41,11 +41,10 @@ public class NonRevocableIntervalsTests
                 { "year", "1997" },
             }
         );
-        var client = new AnonCredsClient();
-        var cred = client.IssueCredential(cd, cdPriv, offer, req, values, null, null, null);
+        var (cred, _) = Credential.Create(cd, cdPriv, offer, req, values, null, null, null, null);
         var proc = cred.Process(meta, ls, cd, null);
 
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqJson = JsonSerializer.Serialize(
             new
             {
@@ -83,7 +82,7 @@ public class NonRevocableIntervalsTests
         var schemaIdsJson = JsonSerializer.Serialize(new[] { SchemaId });
         var credDefIdsJson = JsonSerializer.Serialize(new[] { CredDefId });
 
-        var (presentation, _, _, _, _, _, _, _, _, _) = client.CreatePresentation(
+        var presentation = Presentation.CreateFromJson(
             presReq,
             credsArray,
             JsonSerializer.Serialize(new Dictionary<string, string>()),
@@ -96,8 +95,7 @@ public class NonRevocableIntervalsTests
             null
         );
 
-        var ok = client.VerifyPresentation(
-            presentation,
+        var ok = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,

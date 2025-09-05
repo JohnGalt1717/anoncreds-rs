@@ -16,7 +16,7 @@ public sealed class Credential : AnonCredsObject
     /// <summary>
     /// Creates a credential and its revocation delta. Both returned objects must be disposed using <c>using</c> statements.
     /// </summary>
-    internal static (Credential Credential, RevocationStatusListDelta? Delta) Create(
+    public static (Credential Credential, RevocationStatusListDelta? Delta) Create(
         CredentialDefinition credDef,
         CredentialDefinitionPrivate credDefPvt,
         CredentialOffer offer,

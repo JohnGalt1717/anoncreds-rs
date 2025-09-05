@@ -108,23 +108,24 @@ public class MultipleCredentialsTests
             RevRegIndex = 9u,
         };
 
-        var client = new AnonCredsClient();
-        var cred1 = client.IssueCredential(
+        var (cred1, _) = Credential.Create(
             credDef1,
             credDef1Priv,
             offer1,
             req1,
             values1,
             null,
-            revCfg,
-            null
+            null,
+            revList,
+            revCfg
         );
-        var cred2 = client.IssueCredential(
+        var (cred2, _) = Credential.Create(
             credDef2,
             credDef2Priv,
             offer2,
             req2,
             values2,
+            null,
             null,
             null,
             null
@@ -152,7 +153,7 @@ public class MultipleCredentialsTests
         );
 
         // Request with global non_revoked window [5,25]
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqJson = $$"""
             {
               "nonce":"{{nonce}}",
@@ -212,7 +213,7 @@ public class MultipleCredentialsTests
             new Dictionary<string, string> { { revReg1Id, revListIssued.ToJson() } }
         );
 
-        var (presentation, _, _, _, _, _, _, _, _, _) = new AnonCredsClient().CreatePresentation(
+        var presentation = Presentation.CreateFromJson(
             presReq,
             credsArray,
             selfAtt,
@@ -225,8 +226,7 @@ public class MultipleCredentialsTests
             revListsJson
         );
 
-        var ok = new AnonCredsClient().VerifyPresentation(
-            presentation,
+        var ok = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,

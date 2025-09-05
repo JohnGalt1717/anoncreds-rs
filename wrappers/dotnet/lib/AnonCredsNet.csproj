@@ -12,6 +12,12 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.DisableRuntimeMarshallingAttribute" />
   </ItemGroup>
 
+  <!-- Exclude legacy client facade from build -->
+  <ItemGroup>
+    <Compile Remove="AnonCredsClient.cs" />
+    <None Include="AnonCredsClient.cs" />
+  </ItemGroup>
+
   <Target Name="CopyNativeAnoncreds" BeforeTargets="Build">
     <ItemGroup>
       <!-- Windows x64 -->

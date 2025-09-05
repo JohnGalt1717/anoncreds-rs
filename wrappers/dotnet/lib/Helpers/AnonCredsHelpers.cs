@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AnonCredsNet.Exceptions;
 using AnonCredsNet.Interop;
 using AnonCredsNet.Models;
@@ -10,16 +11,6 @@ namespace AnonCredsNet.Helpers;
 
 internal static class AnonCredsHelpers
 {
-    private static bool _initialized;
-
-    internal static void Initialize()
-    {
-        if (_initialized)
-            return;
-        // No explicit initialization in anoncreds-rs FFI, but placeholder for future use
-        _initialized = true;
-    }
-
     internal static string GetCurrentError()
     {
         var code = NativeMethods.anoncreds_get_current_error(out var ptr);
@@ -237,6 +228,210 @@ internal static class AnonCredsHelpers
         {
             Marshal.FreeHGlobal(list.Data);
         }
+    }
+
+    internal static FfiCredentialEntryList ParseCredentialsJson(
+        string credentialsJson,
+        bool isW3c = false
+    )
+    {
+        var entries =
+            JsonSerializer.Deserialize<CredentialEntryJson[]>(
+                credentialsJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            ) ?? throw new InvalidOperationException("Invalid credentials JSON");
+        var ffiEntries = new FfiCredentialEntry[entries.Length];
+        for (var i = 0; i < entries.Length; i++)
+        {
+            var entry = entries[i];
+            var credBuffer = CreateByteBuffer(entry.Credential);
+            long credHandle;
+            ErrorCode result;
+            try
+            {
+                if (isW3c)
+                {
+                    result = NativeMethods.anoncreds_w3c_credential_from_json(
+                        credBuffer,
+                        out credHandle
+                    );
+                }
+                else
+                {
+                    result = NativeMethods.anoncreds_credential_from_json(
+                        credBuffer,
+                        out credHandle
+                    );
+                }
+            }
+            finally
+            {
+                FreeByteBuffer(credBuffer);
+            }
+            if (result != ErrorCode.Success)
+                throw new AnonCredsException(result, GetCurrentError());
+
+            long revStateHandle = 0;
+            if (!string.IsNullOrEmpty(entry.RevState))
+            {
+                var revStateBuffer = CreateByteBuffer(entry.RevState);
+                try
+                {
+                    result = NativeMethods.anoncreds_revocation_state_from_json(
+                        revStateBuffer,
+                        out revStateHandle
+                    );
+                }
+                finally
+                {
+                    FreeByteBuffer(revStateBuffer);
+                }
+                if (result != ErrorCode.Success)
+                    throw new AnonCredsException(result, GetCurrentError());
+            }
+
+            ffiEntries[i] = new FfiCredentialEntry
+            {
+                Credential = credHandle,
+                // Use -1 to indicate 'no timestamp' (maps to None on Rust side)
+                // This keeps the pair rule: timestamp and rev_state must be both present or both absent
+                Timestamp = entry.Timestamp.HasValue ? entry.Timestamp.Value : -1,
+                RevState = revStateHandle,
+            };
+        }
+        var ptr = Marshal.AllocHGlobal(ffiEntries.Length * Marshal.SizeOf<FfiCredentialEntry>());
+        for (var i = 0; i < ffiEntries.Length; i++)
+        {
+            Marshal.StructureToPtr(
+                ffiEntries[i],
+                ptr + i * Marshal.SizeOf<FfiCredentialEntry>(),
+                false
+            );
+        }
+        return new FfiCredentialEntryList { Data = ptr, Count = (nuint)ffiEntries.Length };
+    }
+
+    internal static FfiCredentialProveList CreateCredentialsProveList(
+        string presReqJson,
+        string? selfAttestJson,
+        string? credentialsJson
+    )
+    {
+        var proveList = new List<FfiCredentialProve>();
+        // Optional: referents mapping supplied with credentials
+        Dictionary<string, int> referentToEntryIdx = new(StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(credentialsJson))
+        {
+            try
+            {
+                var entries = JsonSerializer.Deserialize<CredentialEntryJson[]>(
+                    credentialsJson,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                );
+                if (entries != null)
+                {
+                    for (int i = 0; i < entries.Length; i++)
+                    {
+                        var refs = entries[i].Referents;
+                        if (refs == null)
+                            continue;
+                        foreach (var r in refs)
+                        {
+                            if (!referentToEntryIdx.ContainsKey(r))
+                                referentToEntryIdx[r] = i;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        HashSet<string> selfAttestedReferents = new(StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(selfAttestJson))
+        {
+            try
+            {
+                var map =
+                    JsonSerializer.Deserialize<Dictionary<string, string>>(selfAttestJson!)
+                    ?? new();
+                foreach (var k in map.Keys)
+                {
+                    selfAttestedReferents.Add(k);
+                }
+            }
+            catch { }
+        }
+
+        using (var doc = JsonDocument.Parse(presReqJson))
+        {
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("requested_attributes", out var requestedAttributes))
+            {
+                foreach (var attr in requestedAttributes.EnumerateObject())
+                {
+                    var referent = attr.Name;
+                    if (selfAttestedReferents.Contains(referent))
+                        continue;
+                    int entryIdx = referentToEntryIdx.TryGetValue(referent, out var idx) ? idx : 0;
+                    proveList.Add(
+                        new FfiCredentialProve
+                        {
+                            EntryIdx = entryIdx,
+                            Referent = Marshal.StringToHGlobalAnsi(referent),
+                            IsPredicate = 0,
+                            Reveal = 1,
+                        }
+                    );
+                }
+            }
+
+            if (root.TryGetProperty("requested_predicates", out var requestedPredicates))
+            {
+                foreach (var pred in requestedPredicates.EnumerateObject())
+                {
+                    var referent = pred.Name;
+                    int entryIdx = referentToEntryIdx.TryGetValue(referent, out var idx) ? idx : 0;
+                    proveList.Add(
+                        new FfiCredentialProve
+                        {
+                            EntryIdx = entryIdx,
+                            Referent = Marshal.StringToHGlobalAnsi(referent),
+                            IsPredicate = 1,
+                            Reveal = 0,
+                        }
+                    );
+                }
+            }
+        }
+
+        if (proveList.Count == 0)
+        {
+            return new FfiCredentialProveList { Data = IntPtr.Zero, Count = 0 };
+        }
+
+        var proveArray = proveList.ToArray();
+        var size = Marshal.SizeOf<FfiCredentialProve>();
+        var ptr = Marshal.AllocHGlobal(size * proveArray.Length);
+
+        for (int i = 0; i < proveArray.Length; i++)
+        {
+            Marshal.StructureToPtr(proveArray[i], ptr + (i * size), false);
+        }
+
+        return new FfiCredentialProveList { Data = ptr, Count = (nuint)proveArray.Length };
+    }
+
+    private class CredentialEntryJson
+    {
+        public string Credential { get; set; } = "";
+        public int? Timestamp { get; set; }
+
+        [JsonPropertyName("rev_state")]
+        public string? RevState { get; set; }
+
+        [JsonPropertyName("referents")]
+        public List<string>? Referents { get; set; }
     }
 
     internal static FfiNonrevokedIntervalOverrideList BuildNonrevokedIntervalOverrideList(

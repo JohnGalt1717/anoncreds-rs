@@ -11,7 +11,7 @@ public sealed class W3cCredential : AnonCredsObject
     private W3cCredential(long handle)
         : base(handle) { }
 
-    internal static W3cCredential Create(
+    public static W3cCredential Create(
         CredentialDefinition credDef,
         CredentialDefinitionPrivate credDefPvt,
         CredentialOffer offer,

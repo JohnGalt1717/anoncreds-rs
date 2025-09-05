@@ -89,38 +89,39 @@ public class MultiOverrideRevocationTests
             new Dictionary<string, string> { { "animal", "cat" }, { "species", "tabby" } }
         );
 
-        var c = new AnonCredsClient();
-        var cred1 = c.IssueCredential(
+        var (cred1, _) = Credential.Create(
             cd1,
             cd1Priv,
             offer1,
             req1,
             vals1,
             null,
+            null,
+            list1,
             new CredentialRevocationConfig
             {
                 RevRegDef = rev1,
                 RevRegDefPrivate = rev1Priv,
                 RevStatusList = list1,
                 RevRegIndex = 9u,
-            },
-            null
+            }
         );
-        var cred2 = c.IssueCredential(
+        var (cred2, _) = Credential.Create(
             cd2,
             cd2Priv,
             offer2,
             req2,
             vals2,
             null,
+            null,
+            list2,
             new CredentialRevocationConfig
             {
                 RevRegDef = rev2,
                 RevRegDefPrivate = rev2Priv,
                 RevStatusList = list2,
                 RevRegIndex = 7u,
-            },
-            null
+            }
         );
 
         var p1 = cred1.Process(meta1, ls, cd1, rev1);
@@ -133,7 +134,7 @@ public class MultiOverrideRevocationTests
         var rs2 = RevocationState.Create(rev2, list2Issued, 7u, rev2.TailsLocation);
 
         // Request: local windows require from=10 for referents bound to cred1, and from=12 for referents bound to cred2
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqJson = JsonSerializer.Serialize(
             new
             {
@@ -208,7 +209,7 @@ public class MultiOverrideRevocationTests
             }
         );
 
-        var (presentation, _, _, _, _, _, _, _, _, _) = c.CreatePresentation(
+        var presentation = Presentation.CreateFromJson(
             presReq,
             credsArray,
             JsonSerializer.Serialize(new Dictionary<string, string>()),
@@ -222,8 +223,7 @@ public class MultiOverrideRevocationTests
         );
 
         // Without overrides, should fail
-        var okNoOverride = c.VerifyPresentation(
-            presentation,
+        var okNoOverride = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
@@ -250,8 +250,7 @@ public class MultiOverrideRevocationTests
                 },
             }
         );
-        var okWithOverride = c.VerifyPresentation(
-            presentation,
+        var okWithOverride = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,

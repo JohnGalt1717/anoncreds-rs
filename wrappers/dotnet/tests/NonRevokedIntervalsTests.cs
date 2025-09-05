@@ -99,9 +99,28 @@ public class NonRevokedIntervalsTests
             RevRegIndex = 9u,
         };
 
-        var client = new AnonCredsClient();
-        var cred1 = client.IssueCredential(cd1, cd1Priv, offer1, req1, values1, null, revCfg, null);
-        var cred2 = client.IssueCredential(cd2, cd2Priv, offer2, req2, values2, null, null, null);
+        var (cred1, _) = Credential.Create(
+            cd1,
+            cd1Priv,
+            offer1,
+            req1,
+            values1,
+            null,
+            null,
+            revList,
+            revCfg
+        );
+        var (cred2, _) = Credential.Create(
+            cd2,
+            cd2Priv,
+            offer2,
+            req2,
+            values2,
+            null,
+            null,
+            null,
+            null
+        );
 
         var proc1 = cred1.Process(meta1, ls, cd1, revDef);
         var proc2 = cred2.Process(meta2, ls, cd2, null);
@@ -112,7 +131,7 @@ public class NonRevokedIntervalsTests
         var revState = RevocationState.Create(revDef, revListIssued, 9u, revDef.TailsLocation);
 
         // Request with global non_revoked window [5,25] and local windows for two referents [10,20]
-        var nonce = AnonCredsClient.GenerateNonce();
+        var nonce = AnonCreds.GenerateNonce();
         var presReqJson = JsonSerializer.Serialize(
             new
             {
@@ -183,7 +202,7 @@ public class NonRevokedIntervalsTests
             new Dictionary<string, string> { { RevReg1Id, revListIssued.ToJson() } }
         );
 
-        var (presentation, _, _, _, _, _, _, _, _, _) = client.CreatePresentation(
+        var presentation = Presentation.CreateFromJson(
             presReq,
             credsArray,
             selfAtt,
@@ -197,8 +216,7 @@ public class NonRevokedIntervalsTests
         );
 
         // Without overrides, local windows [10,20] require rev status at from=10; our proof is at 9 -> expect failure
-        var okNoOverride = client.VerifyPresentation(
-            presentation,
+        var okNoOverride = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
@@ -221,8 +239,7 @@ public class NonRevokedIntervalsTests
                 },
             }
         );
-        var okWithOverride = client.VerifyPresentation(
-            presentation,
+        var okWithOverride = presentation.Verify(
             presReq,
             schemasJson,
             credDefsJson,
